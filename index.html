@@ -1,0 +1,2815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THISDL Reads | School Library Book Community</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6d28d9',
+                        secondary: '#a78bfa',
+                        accent: '#db2777',
+                        background: '#faf5ff',
+                        card: '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        .card-shadow { box-shadow: 0 2px 8px rgba(109, 40, 217, 0.08); }
+        .card-shadow-lg { box-shadow: 0 8px 32px rgba(109, 40, 217, 0.15); }
+
+        .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .hover-lift:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(109, 40, 217, 0.12); }
+
+        /* Hero banner */
+        .hero-banner {
+            position: relative;
+            min-height: 420px;
+            overflow: hidden;
+        }
+        .hero-slides {
+            position: absolute; inset: 0;
+            display: flex;
+            transition: transform 0.8s ease-in-out;
+            height: 100%;
+        }
+        .hero-slide {
+            min-width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+        }
+        .hero-banner::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.6) 100%);
+            z-index: 2;
+        }
+        .hero-content { position: relative; z-index: 3; }
+        .hero-text-shadow { text-shadow: 0 2px 12px rgba(0,0,0,0.5); }
+        .school-ribbon {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 3;
+            background: #6d28d9;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        /* Nav Bar */
+        .site-nav {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            background: white;
+            border-bottom: 2px solid #f3e8ff;
+            padding: 0 20px;
+            position: relative;
+            z-index: 40;
+        }
+        .site-nav a {
+            display: block;
+            padding: 12px 18px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #6b7280;
+            text-decoration: none;
+            white-space: nowrap;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .site-nav a:hover, .site-nav a.active {
+            color: #6d28d9;
+            border-bottom-color: #6d28d9;
+        }
+        .nav-dropdown {
+            position: relative;
+        }
+        .nav-dropdown > a {
+            cursor: default;
+        }
+        .nav-dropdown a i {
+            font-size: 0.6rem;
+            margin-left: 4px;
+        }
+        .nav-dropdown-content {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            min-width: 180px;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            z-index: 100;
+            padding: 6px 0;
+            border: 1px solid #e5d5f5;
+        }
+        .nav-dropdown-content.show {
+            display: block;
+        }
+        .nav-dropdown-content a {
+            display: block;
+            padding: 9px 18px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            border: none;
+            margin: 0;
+        }
+        .nav-dropdown-content a:hover {
+            background: #faf5ff;
+            color: #6d28d9;
+            border: none;
+        }
+        /* Page sections */
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        .modal-backdrop {
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .modal-backdrop.active {
+            opacity: 1; pointer-events: all;
+        }
+
+        /* Modal panel */
+        .modal-panel {
+            background: white; border-radius: 16px;
+            width: 90%; max-width: 440px; max-height: 90vh; overflow-y: auto;
+            transform: scale(0.92) translateY(20px);
+            transition: transform 0.25s ease;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+        }
+        .modal-backdrop.active .modal-panel {
+            transform: scale(1) translateY(0);
+        }
+
+        /* Tab underline */
+        .auth-tab { position: relative; cursor: pointer; }
+        .auth-tab::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+            height: 2px; border-radius: 2px;
+            background: #6d28d9;
+            transform: scaleX(0); transition: transform 0.2s ease;
+        }
+        .auth-tab.active::after { transform: scaleX(1); }
+        .auth-tab.active { color: #6d28d9; }
+
+        /* Form fields */
+        .auth-input {
+            width: 100%; padding: 0.75rem 1rem;
+            border: 1.5px solid #e5e7eb; border-radius: 10px;
+            outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+            font-size: 0.95rem;
+        }
+        .auth-input:focus {
+            border-color: #6d28d9;
+            box-shadow: 0 0 0 3px rgba(109,40,217,0.12);
+        }
+        .auth-input.error { border-color: #dc2626; }
+        .auth-input.success { border-color: #16a34a; }
+
+        .auth-btn {
+            width: 100%; padding: 0.75rem;
+            border: none; border-radius: 10px;
+            font-weight: 600; font-size: 1rem;
+            cursor: pointer; transition: all 0.2s;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-80px);
+            z-index: 200;
+            padding: 12px 24px; border-radius: 12px;
+            font-size: 0.9rem; font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            transition: transform 0.35s ease, opacity 0.35s ease;
+            opacity: 0; pointer-events: none;
+            max-width: 90vw;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .toast.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .toast.info { background: #faf5ff; color: #6d28d9; border: 1px solid #e9d5ff; }
+
+        /* User dropdown */
+        .user-dropdown {
+            position: absolute; top: calc(100% + 8px); right: 0;
+            background: white; border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            min-width: 200px;
+            opacity: 0; pointer-events: none;
+            transform: translateY(-8px);
+            transition: all 0.2s ease;
+            border: 1px solid #f3e8ff;
+            z-index: 60;
+        }
+        .user-dropdown.active { opacity: 1; pointer-events: all; transform: translateY(0); }
+
+        .line-clamp-2 {
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+
+        /* Posts feed */
+        .post-enter {
+            animation: postSlideIn 0.4s ease forwards;
+        }
+        @keyframes postSlideIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-background text-gray-800 min-h-screen">
+    <!-- Subtle purple gradient background overlay -->
+    <div class="fixed inset-0 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none -z-10"></div>
+
+    <!-- ========== TOP NAVIGATION ========== -->
+    <nav class="sticky top-0 bg-white/95 backdrop-blur-sm card-shadow z-50 border-b border-primary/10">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-book-open text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-primary">THISDL Reads</h1>
+                <span class="hidden md:inline-block text-xs bg-secondary/20 text-primary px-2 py-1 rounded-full ml-2">
+                    Official Library Community
+                </span>
+            </div>
+            
+            <!-- Search (desktop) -->
+            <div class="hidden md:flex flex-1 max-w-lg mx-8">
+                <div class="relative w-full">
+                    <input type="text" placeholder="Search books, reviews, or authors..." 
+                           class="w-full pl-10 pr-4 py-2 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all">
+                    <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <a href="https://thisdllibrary.com" target="_blank" 
+                   class="hidden md:flex items-center text-primary hover:text-primary/80 transition-colors">
+                    <i class="fa fa-university mr-2"></i>
+                    Library Catalog
+                </a>
+                <!-- Share button (nav) -->
+                <button id="navShareBtn" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm shadow-primary/20">
+                    <i class="fa fa-pencil mr-2"></i>Share Your Thoughts
+                </button>
+                <!-- Profile / Auth area -->
+                <div id="authArea" class="relative">
+                    <!-- Logged-out state (shown by default) -->
+                    <button id="signInBtn" class="flex items-center text-primary hover:text-primary/80 transition-colors font-medium">
+                        <i class="fa fa-user-circle-o text-2xl mr-1"></i>
+                        <span class="hidden md:inline">Sign In</span>
+                    </button>
+                    <!-- Logged-in state (hidden by default) -->
+                    <div id="userMenu" class="hidden items-center cursor-pointer">
+                        <div class="hidden md:flex items-center mr-3">
+                            <span id="userDisplayName" class="text-sm font-medium text-gray-700 mr-2"></span>
+                        </div>
+                        <div id="userAvatarBtn" class="w-9 h-9 rounded-full bg-gradient-to-br from-secondary to-primary overflow-hidden ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold">
+                            <span id="userAvatarText"></span>
+                            <img id="userAvatarImg" src="" alt="" class="w-full h-full object-cover hidden">
+                        </div>
+                        <!-- Dropdown -->
+                        <div id="userDropdown" class="user-dropdown">
+                            <div class="px-4 py-3 border-b border-gray-100">
+                                <p id="dropdownUsername" class="font-medium text-sm"></p>
+                                <p id="dropdownEmail" class="text-xs text-gray-500 truncate"></p>
+                            </div>
+                            <button id="profileBtn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-primary/5 transition-colors flex items-center">
+                                <i class="fa fa-user-circle mr-2 text-primary/60"></i>My Profile
+                            </button>
+                            <button id="myPostsBtn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-primary/5 transition-colors flex items-center">
+                                <i class="fa fa-file-text-o mr-2 text-primary/60"></i>My Posts
+                            </button>
+                            <button id="logoutBtn" class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center rounded-b-xl">
+                                <i class="fa fa-sign-out mr-2"></i>Sign Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Search -->
+    <div class="md:hidden px-4 py-3 bg-white/95 border-b border-primary/10">
+        <div class="relative w-full">
+            <input type="text" placeholder="Search books, reviews, or authors..." 
+                   class="w-full pl-10 pr-4 py-2 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all">
+            <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+        </div>
+    </div>
+
+    <!-- ========== MAIN CONTENT ========== -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Hero Photo Banner -->
+        <div class="hero-banner rounded-xl mb-6 border border-primary/10">
+            <div class="hero-slides" id="heroSlides"></div>
+            <div class="hero-content p-8 md:p-12 text-center">
+                <p class="text-white/90 text-sm uppercase tracking-widest mb-2 hero-text-shadow">THISDL Reads</p>
+                <h2 id="todayDate" class="text-2xl md:text-4xl font-bold text-white hero-text-shadow"></h2>
+            </div>
+            <div class="school-ribbon">
+                <span class="text-white font-bold text-lg md:text-xl tracking-wider">📖 Readers Are Leaders</span>
+            </div>
+        </div>
+
+        </div>
+
+        <!-- ========== NAV BAR ========== -->
+        <nav class="site-nav rounded-t-xl mb-6">
+            <a href="#" class="active" data-page="home">Home</a>
+            <div class="nav-dropdown">
+                <a href="#" data-page="posts">Posts <i class="fa fa-chevron-down"></i></a>
+                <div class="nav-dropdown-content">
+                    <a href="#" data-filter="all">All Posts</a>
+                    <a href="#" data-filter="reviews">Book Reviews</a>
+                    <a href="#" data-filter="thoughts">Thoughts Dump</a>
+                    <a href="#" data-filter="myposts">My Posts</a>
+                </div>
+            </div>
+            <div class="nav-dropdown">
+                <a href="#" data-page="games">Games <i class="fa fa-chevron-down"></i></a>
+                <div class="nav-dropdown-content">
+                    <a href="#" data-game="trivia">Book Trivia</a>
+                    <a href="#" data-game="hangman">Vocabulary Hangman</a>
+                    <a href="#" data-game="bingo">Reading Bingo</a>
+                    <a href="#" data-game="wordsearch">Book Word Search</a>
+                    <a href="#" data-game="wheel">Recommendation Wheel</a>
+                </div>
+            </div>
+            <a href="#" data-page="vocab">Vocab</a>
+            <a href="#" data-page="leaderboard">Leaderboard</a>
+            <a href="#" data-page="about">About</a>
+        </nav>
+
+        <!-- ========== PAGE: HOME ========== -->
+        <div id="page-home" class="page-section active">
+            <!-- Weekly Highlights -->
+            <div class="bg-gradient-to-r from-primary/[0.07] to-secondary/[0.07] rounded-xl p-5 md:p-6 mb-8 border border-primary/5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                    <div>
+                        <h3 class="text-xs font-semibold text-primary uppercase tracking-widest mb-2">WORD OF THE WEEK</h3>
+                        <h2 id="wordOfWeek" class="text-2xl md:text-3xl font-bold text-gray-800 mb-1">Ephemeral</h2>
+                        <p id="wordPronunciation" class="text-gray-500 text-sm">/ɪˈfemərəl/ • adjective</p>
+                        <p id="wordDefinition" class="text-gray-700 mt-3 leading-relaxed">Lasting for a very short time.</p>
+                        <p id="wordExample" class="text-gray-400 italic text-sm mt-2">"Fame in the digital age is ephemeral."</p>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-semibold text-accent uppercase tracking-widest mb-2">QUOTE OF THE WEEK</h3>
+                        <blockquote id="quoteOfWeek" class="text-gray-700 italic text-lg md:text-xl leading-relaxed mb-2">
+                            "A reader lives a thousand lives before he dies. The man who never reads lives only one."
+                        </blockquote>
+                        <p id="quoteAuthor" class="text-gray-500 text-sm">— George R.R. Martin</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Main Content (Left 2/3) -->
+                <div class="lg:col-span-2">
+                    <!-- What Our Librarians Are Reading -->
+                    <section class="mb-10">
+                        <div class="flex items-center justify-between mb-5">
+                            <h2 class="text-2xl font-bold text-gray-800">
+                                <i class="fa fa-users text-primary mr-2"></i>
+                                What Our Librarians Are Reading
+                            </h2>
+                            <a href="#" class="text-primary hover:text-primary/80 text-sm font-medium">View All →</a>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div class="bg-white rounded-xl p-5 card-shadow hover-lift border border-primary/5">
+                                <div class="flex items-center mb-4">
+                                    <img src="https://i.pravatar.cc/200?img=5" alt="Ms. Johnson" class="w-12 h-12 rounded-full object-cover mr-4 ring-2 ring-secondary/30">
+                                    <div>
+                                        <h3 class="font-bold">Ms. Sarah Johnson</h3>
+                                        <p class="text-sm text-gray-500">Head Librarian</p>
+                                    </div>
+                                </div>
+                                <div class="flex">
+                                    <img src="https://books.google.com/books/content?vid=ISBN:9780593135204&printsec=frontcover&img=1&zoom=1" alt="Book Cover" class="w-16 h-24 object-cover rounded mr-4 shadow-sm">
+                                    <div>
+                                        <h4 class="font-bold mb-1">Project Hail Mary</h4>
+                                        <p class="text-sm text-gray-600 mb-2">Andy Weir</p>
+                                        <div class="flex text-yellow-400 text-xs mb-2">
+                                            <i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i>
+                                        </div>
+                                        <p class="text-sm text-gray-700 line-clamp-2">"Absolutely brilliant! The science is accurate, the humor is perfect, and the friendship that develops is heartwarming. A must-read for anyone who loves sci-fi."</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-xl p-5 card-shadow hover-lift border border-primary/5">
+                                <div class="flex items-center mb-4">
+                                    <img src="https://i.pravatar.cc/200?img=11" alt="Mr. Davis" class="w-12 h-12 rounded-full object-cover mr-4 ring-2 ring-secondary/30">
+                                    <div>
+                                        <h3 class="font-bold">Mr. Michael Davis</h3>
+                                        <p class="text-sm text-gray-500">English Teacher & Librarian</p>
+                                    </div>
+                                </div>
+                                <div class="flex">
+                                    <img src="https://books.google.com/books/content?vid=ISBN:9780062662583&printsec=frontcover&img=1&zoom=1" alt="Book Cover" class="w-16 h-24 object-cover rounded mr-4 shadow-sm">
+                                    <div>
+                                        <h4 class="font-bold mb-1">The Poppy War</h4>
+                                        <p class="text-sm text-gray-600 mb-2">R.F. Kuang</p>
+                                        <div class="flex text-yellow-400 text-xs mb-2">
+                                            <i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star-half-o"></i>
+                                        </div>
+                                        <p class="text-sm text-gray-700 line-clamp-2">"A dark, brutal fantasy inspired by 20th-century Chinese history. Kuang doesn't shy away from the horrors of war, and the protagonist's journey is both compelling and devastating."</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Recent Posts -->
+                    <section class="mb-10">
+                        <div class="flex items-center justify-between mb-5">
+                            <h2 class="text-2xl font-bold text-gray-800">
+                                <i class="fa fa-clock-o text-primary mr-2"></i>
+                                Recent Posts
+                            </h2>
+                            <a href="#" onclick="navigateTo('posts'); return false;" class="text-primary hover:text-primary/80 text-sm font-medium">View All →</a>
+                        </div>
+                        <div id="recentPosts" class="space-y-4">
+                            <div class="text-center py-8 text-gray-400">
+                                <p class="text-sm">Loading recent posts...</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Sidebar (Right 1/3) -->
+                <div class="space-y-8">
+                    <!-- Available Now -->
+                    <div class="bg-white rounded-xl p-5 card-shadow border border-primary/5">
+                        <h3 class="font-bold text-lg mb-4 flex items-center">
+                            <i class="fa fa-university text-primary mr-2"></i>
+                            Available Now
+                        </h3>
+                        <p class="text-sm text-gray-500 mb-4">Books you can check out today from our library</p>
+                        <div class="space-y-4">
+                            <div class="flex items-center">
+                                <img src="https://books.google.com/books/content?vid=ISBN:9780062315007&printsec=frontcover&img=1&zoom=1" alt="Book Cover" class="w-10 h-15 object-cover rounded mr-3 shadow-sm">
+                                <div class="flex-1"><h4 class="font-medium text-sm">The Alchemist</h4><p class="text-xs text-gray-500">Paulo Coelho</p></div>
+                                <span class="text-primary text-xs font-medium bg-primary/5 px-2 py-0.5 rounded-full">In Stock</span>
+                            </div>
+                            <div class="flex items-center">
+                                <img src="https://books.google.com/books/content?vid=ISBN:9780061120084&printsec=frontcover&img=1&zoom=1" alt="Book Cover" class="w-10 h-15 object-cover rounded mr-3 shadow-sm">
+                                <div class="flex-1"><h4 class="font-medium text-sm">To Kill a Mockingbird</h4><p class="text-xs text-gray-500">Harper Lee</p></div>
+                                <span class="text-primary text-xs font-medium bg-primary/5 px-2 py-0.5 rounded-full">In Stock</span>
+                            </div>
+                            <div class="flex items-center">
+                                <img src="https://books.google.com/books/content?vid=ISBN:9780439023528&printsec=frontcover&img=1&zoom=1" alt="Book Cover" class="w-10 h-15 object-cover rounded mr-3 shadow-sm">
+                                <div class="flex-1"><h4 class="font-medium text-sm">The Hunger Games</h4><p class="text-xs text-gray-500">Suzanne Collins</p></div>
+                                <span class="text-primary text-xs font-medium bg-primary/5 px-2 py-0.5 rounded-full">In Stock</span>
+                            </div>
+                        </div>
+                        <a href="https://thisdllibrary.com" target="_blank" class="block text-center mt-4 text-primary hover:text-primary/80 text-sm font-medium transition-colors">View All New Arrivals →</a>
+                    </div>
+
+                    <!-- Popular Tags -->
+                    <div class="bg-white rounded-xl p-5 card-shadow border border-primary/5">
+                        <h3 class="font-bold text-lg mb-4 flex items-center">
+                            <i class="fa fa-tags text-primary mr-2"></i>
+                            Popular Topics
+                        </h3>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Fantasy</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Science Fiction</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Classics</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Historical Fiction</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Mystery</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Romance</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Non-Fiction</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Thriller</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Young Adult</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Biography</span>
+                        </div>
+                    </div>
+
+                    <!-- Call to Action -->
+                    <div class="bg-gradient-to-br from-primary to-secondary rounded-xl p-5 card-shadow relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50 pointer-events-none"></div>
+                        <h3 class="font-bold text-lg mb-2 relative">Share Your Reading Journey</h3>
+                        <p class="text-white/90 text-sm mb-4 relative">Post your reviews, share your thoughts, and connect with other book lovers at our school.</p>
+                        <button id="homeShareBtn" class="w-full bg-white text-primary font-medium py-2 rounded-lg hover:bg-gray-100 transition-colors relative">
+                            <i class="fa fa-pencil mr-2"></i>Share Your First Post
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== PAGE: POSTS ========== -->
+        <div id="page-posts" class="page-section">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2">
+                    <!-- Feed Tabs -->
+                    <div class="border-b border-gray-200 mb-6">
+                        <div class="flex space-x-6 overflow-x-auto">
+                            <button id="feedTabAll" class="whitespace-nowrap pb-3 border-b-2 border-primary text-primary font-medium">All Posts</button>
+                            <button id="feedTabReviews" class="whitespace-nowrap pb-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">Book Reviews</button>
+                            <button id="feedTabThoughts" class="whitespace-nowrap pb-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">Thoughts Dump</button>
+                            <button id="feedTabMyPosts" class="whitespace-nowrap pb-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium hidden">
+                                <i class="fa fa-user mr-1"></i>My Posts
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Posts Feed (dynamic) -->
+                    <div id="postsFeed" class="space-y-6">
+                        <!-- Rendered by JS -->
+                    </div>
+
+                    <!-- Load More -->
+                    <div class="text-center mt-10">
+                        <button id="loadMoreBtn" class="bg-white hover:bg-primary/5 text-gray-700 px-6 py-3 rounded-lg card-shadow transition-all font-medium border border-primary/10 hover:border-primary/20">
+                            Load More Posts
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sidebar on Posts page -->
+                <div class="space-y-8">
+                    <div class="bg-white rounded-xl p-5 card-shadow border border-primary/5">
+                        <h3 class="font-bold text-lg mb-4 flex items-center">
+                            <i class="fa fa-tags text-primary mr-2"></i>
+                            Popular Topics
+                        </h3>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Fantasy</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Science Fiction</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Classics</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Historical Fiction</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Mystery</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Romance</span>
+                            <span class="bg-primary/5 hover:bg-primary/10 text-primary/80 px-3 py-1 rounded-full text-sm cursor-pointer transition-colors">Non-Fiction</span>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-br from-primary to-secondary rounded-xl p-5 card-shadow">
+                        <h3 class="font-bold text-lg mb-2 text-white">Share Your Thoughts</h3>
+                        <p class="text-white/80 text-sm mb-4">Love a book? Hate one? Let everyone know!</p>
+                        <button onclick="openPostModal()" class="w-full bg-white text-primary font-medium py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fa fa-pencil mr-2"></i>Write a Post
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== PAGE: GAMES ========== -->
+        <div id="page-games" class="page-section">
+            <div class="text-center py-16">
+                <div class="text-6xl mb-6">🎮</div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-3">Games & Challenges</h2>
+                <p class="text-gray-500">Coming soon! Book trivia, reading bingo, and more.</p>
+            </div>
+        </div>
+
+        <!-- ========== PAGE: VOCAB ========== -->
+        <div id="page-vocab" class="page-section">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fa fa-book text-primary mr-2"></i>
+                Past Vocabulary
+            </h2>
+            <div id="vocabContent">
+                <!-- Rendered by JS -->
+            </div>
+        </div>
+
+        <!-- ========== PAGE: LEADERBOARD ========== -->
+        <div id="page-leaderboard" class="page-section">
+            <div class="text-center py-16">
+                <div class="text-6xl mb-6">🏆</div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-3">Leaderboard</h2>
+                <p class="text-gray-500">Coming soon! Top readers and reviewers this month.</p>
+            </div>
+        </div>
+
+        <!-- ========== PAGE: ABOUT ========== -->
+        <div id="page-about" class="page-section">
+            <div class="bg-white rounded-xl p-8 card-shadow border border-primary/5">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                    <i class="fa fa-info-circle text-primary mr-2"></i>
+                    About THISDL Reads
+                </h2>
+                <p class="text-gray-600 mb-4">THISDL Reads is the official book community for our school. Share reviews, discover new books, and connect with fellow readers.</p>
+                <p class="text-gray-600 mb-4">Visit our library website: <a href="https://thisdllibrary.com" target="_blank" class="text-primary hover:underline">thisdllibrary.com</a></p>
+                <div class="bg-primary/5 rounded-lg p-4">
+                    <p class="text-sm text-gray-600"><strong class="text-primary">📖 Readers Are Leaders</strong> — This is our school motto. Every book you read makes you a leader.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white mt-16 py-8 border-t border-primary/10">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center space-x-2 mb-4 md:mb-0">
+                    <i class="fa fa-book-open text-primary text-xl"></i>
+                    <h2 class="text-lg font-bold text-primary">THISDL Reads</h2>
+                </div>
+                <div class="flex space-x-6 text-sm text-gray-500">
+                    <a href="https://thisdllibrary.com" target="_blank" class="hover:text-primary transition-colors">School Library</a>
+                    <a href="#" class="hover:text-primary transition-colors">About</a>
+                    <a href="#" class="hover:text-primary transition-colors">Guidelines</a>
+                    <a href="#" class="hover:text-primary transition-colors">Contact Librarians</a>
+                </div>
+            </div>
+            <div class="text-center mt-6 text-sm text-gray-500">
+                <p>An official community of THISDL High School Library • Encouraging reading since 2026</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Floating Share Button (Mobile) -->
+    <div class="md:hidden fixed bottom-6 right-6">
+        <button id="mobileShareBtn" class="bg-primary text-white w-14 h-14 rounded-full card-shadow flex items-center justify-center hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30">
+            <i class="fa fa-pencil text-xl"></i>
+        </button>
+    </div>
+
+    <!-- ========== AUTH MODAL ========== -->
+    <div id="authModal" class="modal-backdrop">
+        <div class="modal-panel p-0">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 pt-6 pb-2">
+                <h2 id="authModalTitle" class="text-xl font-bold text-gray-800">Welcome</h2>
+                <button id="authModalClose" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <p class="px-6 pb-4 text-sm text-gray-500">Join the THISDL reading community</p>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 px-6">
+                <button id="tabSignIn" class="auth-tab active flex-1 pb-3 text-sm font-medium text-gray-500 text-center">Sign In</button>
+                <button id="tabSignUp" class="auth-tab flex-1 pb-3 text-sm font-medium text-gray-500 text-center">Sign Up</button>
+            </div>
+
+            <!-- Sign In Form -->
+            <form id="signInForm" class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email or Username</label>
+                    <input type="text" id="signInEmail" class="auth-input" placeholder="you@thisdl.cn" required autocomplete="email">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="signInPassword" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="auth-btn bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">Sign In</button>
+                <p class="text-xs text-gray-500 text-center">
+                    Don't have an account? <button type="button" id="switchToSignUp" class="text-primary hover:underline font-medium">Sign Up</button>
+                </p>
+            </form>
+
+            <!-- Sign Up Form -->
+            <form id="signUpForm" class="px-6 py-5 space-y-4 hidden">
+                <div class="flex space-x-3">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                        <input type="text" id="signUpFirstName" class="auth-input" placeholder="John" required>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                        <input type="text" id="signUpLastName" class="auth-input" placeholder="Smith" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="signUpEmail" class="auth-input" placeholder="you@thisdl.cn" required autocomplete="email">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="signUpPassword" class="auth-input" placeholder="At least 6 characters" required minlength="6" autocomplete="new-password">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                    <input type="password" id="signUpConfirm" class="auth-input" placeholder="Repeat your password" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="auth-btn bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">Create Account</button>
+                <p class="text-xs text-gray-500 text-center">
+                    Already have an account? <button type="button" id="switchToSignIn" class="text-primary hover:underline font-medium">Sign In</button>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== POST MODAL ========== -->
+    <div id="postModal" class="modal-backdrop">
+        <div class="modal-panel p-0">
+            <div class="flex items-center justify-between px-6 pt-6 pb-2">
+                <h2 class="text-xl font-bold text-gray-800">Create a Post</h2>
+                <button id="postModalClose" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <p class="px-6 pb-4 text-sm text-gray-500">Share your thoughts with the THISDL community</p>
+
+            <form id="postForm" class="px-6 py-5 space-y-4">
+                <input type="hidden" id="editingPostId" value="">
+                <!-- Post Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Post Type</label>
+                    <div class="flex space-x-3">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="postType" value="Book Review" checked class="sr-only peer">
+                            <div class="px-4 py-2 rounded-lg border-2 border-gray-200 peer-checked:border-primary peer-checked:bg-primary/5 text-sm text-gray-600 peer-checked:text-primary font-medium transition-all">📖 Book Review</div>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="postType" value="Thoughts Dump" class="sr-only peer">
+                            <div class="px-4 py-2 rounded-lg border-2 border-gray-200 peer-checked:border-primary peer-checked:bg-primary/5 text-sm text-gray-600 peer-checked:text-primary font-medium transition-all">💭 Thoughts Dump</div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Book Title -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Book Title</label>
+                    <input type="text" id="postBookTitle" class="auth-input" placeholder="e.g. The Great Gatsby" required>
+                </div>
+
+                <!-- Author (shown for reviews) -->
+                <div id="postAuthorGroup">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                    <input type="text" id="postAuthor" class="auth-input" placeholder="e.g. F. Scott Fitzgerald">
+                </div>
+
+                <!-- Book Cover -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Book Cover</label>
+                    <div class="flex items-center space-x-3">
+                        <label for="coverUpload" class="cursor-pointer bg-gray-100 hover:bg-gray-200 transition-colors rounded-lg px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 font-medium border border-gray-200">
+                            <i class="fa fa-camera mr-1"></i> Upload
+                        </label>
+                        <input type="file" id="coverUpload" accept="image/*" class="hidden">
+                        <button type="button" id="removeCover" class="text-xs text-red-500 hover:text-red-700 hidden">Remove</button>
+                    </div>
+                    <p id="coverStatus" class="text-xs text-gray-400 mt-1">Cover will auto-search when you type a book title</p>
+                    <div id="coverPreview" class="hidden mt-2">
+                        <img id="coverPreviewImg" src="" alt="Book cover" class="w-20 h-28 object-cover rounded shadow-sm border border-gray-200">
+                    </div>
+                </div>
+
+                <!-- Rating (shown for reviews) -->
+                <div id="postRatingGroup">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+                    <div id="starRating" class="flex space-x-1 text-2xl">
+                        <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="1">★</button>
+                        <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="2">★</button>
+                        <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="3">★</button>
+                        <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="4">★</button>
+                        <button type="button" class="star-btn text-gray-300 hover:text-yellow-400 transition-colors" data-value="5">★</button>
+                    </div>
+                    <input type="hidden" id="postRating" value="0">
+                </div>
+
+                <!-- Content -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Your Thoughts</label>
+                    <textarea id="postContent" rows="4" class="auth-input resize-none" placeholder="What did you think? Share your reading experience..." required></textarea>
+                    <p class="text-xs text-gray-400 mt-1"><span id="charCount">0</span> characters</p>
+                </div>
+
+                <!-- Tags -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tags (optional)</label>
+                    <input type="text" id="postTags" class="auth-input" placeholder="e.g. Fantasy, Fiction, YA (comma separated)">
+                </div>
+
+                <button type="submit" class="auth-btn bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">
+                    <i class="fa fa-paper-plane mr-2"></i>Publish Post
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== PROFILE MODAL ========== -->
+    <div id="profileModal" class="modal-backdrop">
+        <div class="modal-panel p-0">
+            <div class="flex items-center justify-between px-6 pt-6 pb-2">
+                <h2 class="text-xl font-bold text-gray-800">My Profile</h2>
+                <button id="profileModalClose" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <p class="px-6 pb-4 text-sm text-gray-500">Manage your public profile</p>
+
+            <form id="profileForm" class="px-6 py-5 space-y-5">
+                <!-- Profile Picture -->
+                <div class="text-center">
+                    <div class="relative inline-block">
+                        <div id="profileAvatarPreview" class="w-24 h-24 rounded-full bg-gradient-to-br from-secondary to-primary overflow-hidden ring-4 ring-primary/20 mx-auto flex items-center justify-center text-white text-3xl font-bold">
+                            <span id="profileAvatarInitial"></span>
+                            <img id="profileAvatarImg" src="" alt="" class="w-full h-full object-cover hidden">
+                        </div>
+                        <label for="avatarUpload" class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-md">
+                            <i class="fa fa-camera text-xs"></i>
+                        </label>
+                        <input type="file" id="avatarUpload" accept="image/*" class="hidden">
+                    </div>
+                </div>
+
+                <!-- Name -->
+                <div class="flex space-x-3">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                        <input type="text" id="profileFirstName" class="auth-input" placeholder="John">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                        <input type="text" id="profileLastName" class="auth-input" placeholder="Smith">
+                    </div>
+                </div>
+
+                <!-- School Email (auto-filled from sign-up email) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">School Email</label>
+                    <input type="email" id="profileSchoolEmail" class="auth-input bg-gray-50 text-gray-500" readonly>
+                    <p class="text-xs text-gray-400 mt-1">This is the email you used to sign up</p>
+                </div>
+
+                <!-- Bio -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+                    <textarea id="profileBio" rows="3" class="auth-input resize-none" placeholder="Tell the community about yourself... What kind of books do you like?"></textarea>
+                    <p class="text-xs text-gray-400 mt-1"><span id="bioCharCount">0</span> / 200 characters</p>
+                </div>
+
+                <button type="submit" class="auth-btn bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">
+                    <i class="fa fa-save mr-2"></i>Save Profile
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== USER PROFILE MODAL ========== -->
+    <div id="userProfileModal" class="modal-backdrop">
+        <div class="modal-panel p-0">
+            <div class="flex items-center justify-between px-6 pt-6 pb-2">
+                <h2 id="userProfileTitle" class="text-xl font-bold text-gray-800">User Profile</h2>
+                <button id="userProfileModalClose" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+
+            <div id="userProfileContent" class="px-6 pb-6">
+                <!-- Profile Header -->
+                <div class="text-center py-6">
+                    <div id="userProfileAvatar" class="w-20 h-20 rounded-full bg-gradient-to-br from-secondary to-primary mx-auto mb-3 ring-4 ring-primary/20 flex items-center justify-center text-white text-2xl font-bold">
+                        <span id="userProfileAvatarInitial"></span>
+                        <img id="userProfileAvatarImg" src="" alt="" class="w-full h-full object-cover rounded-full hidden">
+                    </div>
+                    <h3 id="userProfileName" class="text-lg font-bold text-gray-800"></h3>
+                    <p id="userProfileEmail" class="text-sm text-gray-500 mt-1"></p>
+                    <p id="userProfileBio" class="text-sm text-gray-600 mt-3 max-w-md mx-auto px-4"></p>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex border-b border-gray-200 mb-4">
+                    <button class="up-tab active px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary" data-tab="posts">Posts</button>
+                    <button class="up-tab px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-tab="comments">Comments</button>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="upPostsContent" class="space-y-3 max-h-80 overflow-y-auto"></div>
+                <div id="upCommentsContent" class="space-y-3 max-h-80 overflow-y-auto hidden"></div>
+                <div id="upEmptyState" class="text-center py-8 text-gray-400 hidden">
+                    <div class="text-4xl mb-2">📭</div>
+                    <p class="text-sm">No activity yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== TOAST ========== -->
+    <div id="toast" class="toast"></div>
+
+    <!-- ========== JAVASCRIPT ========== -->
+    <script>
+        (function() {
+            'use strict';
+
+            // ==================== SUPABASE CLIENT ====================
+            var supabase = null;
+            try {
+                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                    const _supabaseUrl = 'https://pvjhwffsjgncodrjzdjg.supabase.co';
+                    const _supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2amh3ZmZzamduY29kcmp6ZGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyODY2MDEsImV4cCI6MjA5NTg2MjYwMX0.BK8uMlT80plnnvzdCKiiSJgCsHu-2PQEPSfDUeoNrBw';
+                    supabase = window.supabase.createClient(_supabaseUrl, _supabaseAnonKey, {
+                        auth: {
+                            persistSession: true,
+                            storageKey: 'thisdl-reads-auth',
+                            autoRefreshToken: true,
+                            detectSessionInUrl: false
+                        }
+                    });
+                } else {
+                    console.warn('Supabase client not loaded (offline?). Running in limited mode.');
+                }
+            } catch (e) {
+                console.warn('Supabase init error:', e);
+            }
+
+            // Fallback: run entirely offline if Supabase is unavailable
+            var _online = supabase !== null;
+            var isOnline = function() { return _online; };
+            // Quick connectivity test — if Supabase URL is unreachable, mark as offline immediately
+            if (_online) {
+                fetch('https://pvjhwffsjgncodrjzdjg.supabase.co', { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+                    .catch(function() { _online = false; });
+                // Fallback: if the fetch takes too long, mark offline after 3s
+                setTimeout(function() { if (!_online) { _online = false; console.warn('Supabase unreachable, running in limited mode.'); } }, 3000);
+            }
+
+            // ==================== CONSTANTS ====================
+            const POSTS_PER_PAGE = 3;
+
+            // ==================== WEEKLY ROTATION ====================
+            const weeklyWords = [
+                { word: 'Ephemeral', pronunciation: '/ɪˈfemərəl/', type: 'adjective', definition: 'Lasting for a very short time.', example: '"Fame in the digital age is ephemeral."' },
+                { word: 'Serendipity', pronunciation: '/ˌsɛrənˈdɪpɪti/', type: 'noun', definition: 'The occurrence of events by chance in a happy way.', example: '"Finding that book was pure serendipity."' },
+                { word: 'Eloquent', pronunciation: '/ˈɛləkwənt/', type: 'adjective', definition: 'Fluent or persuasive in speaking or writing.', example: '"She gave an eloquent speech about the power of literature."' },
+                { word: 'Resilient', pronunciation: '/rɪˈzɪliənt/', type: 'adjective', definition: 'Able to withstand or recover quickly from difficult conditions.', example: '"The community proved resilient after the storm."' },
+                { word: 'Ethereal', pronunciation: '/ɪˈθɪəriəl/', type: 'adjective', definition: 'Extremely delicate and light in a way that seems not of this world.', example: '"The ethereal music transported the audience."' },
+                { word: 'Mellifluous', pronunciation: '/mɛˈlɪfluəs/', type: 'adjective', definition: 'Sweet or musical; pleasant to hear.', example: '"The mellifluous sound of the violin filled the room."' },
+                { word: 'Petrichor', pronunciation: '/ˈpɛtrɪkɔːr/', type: 'noun', definition: 'A pleasant smell that frequently accompanies the first rain after a dry spell.', example: '"The petrichor after the summer storm was refreshing."' },
+                { word: 'Sonder', pronunciation: '/ˈsɒndər/', type: 'noun', definition: 'The realization that each passerby has a life as vivid and complex as your own.', example: '"Walking through the city filled her with sonder."' },
+                { word: 'Susurrus', pronunciation: '/suːˈsɜːrəs/', type: 'noun', definition: 'A soft murmuring or rustling sound.', example: '"The susurrus of leaves in the wind was calming."' },
+                { word: 'Ineffable', pronunciation: '/ɪnˈɛfəbəl/', type: 'adjective', definition: 'Too great or extreme to be expressed in words.', example: '"The beauty of the sunset was ineffable."' },
+                { word: 'Epiphany', pronunciation: '/ɪˈpɪfəni/', type: 'noun', definition: 'A moment of sudden revelation or insight.', example: '"She had an epiphany about the meaning of the poem."' },
+                { word: 'Whimsical', pronunciation: '/ˈwɪmzɪkəl/', type: 'adjective', definition: 'Playfully quaint or fanciful.', example: '"The artist\'s whimsical style brought joy to children."' },
+                { word: 'Luminous', pronunciation: '/ˈluːmɪnəs/', type: 'adjective', definition: 'Full of or shedding light; bright.', example: '"The luminous moon guided their way."' },
+                { word: 'Quintessential', pronunciation: '/ˌkwɪntɪˈsɛnʃəl/', type: 'adjective', definition: 'Representing the most perfect example of a quality.', example: '"It was the quintessential summer day."' },
+                { word: 'Reverie', pronunciation: '/ˈrɛvəri/', type: 'noun', definition: 'A state of being pleasantly lost in one\'s thoughts.', example: '"She was lost in a reverie, dreaming of faraway lands."' },
+                { word: 'Enigma', pronunciation: '/ɪˈnɪɡmə/', type: 'noun', definition: 'A person or thing that is mysterious or difficult to understand.', example: '"The ancient manuscript remained an enigma."' },
+                { word: 'Perennial', pronunciation: '/pəˈrɛniəl/', type: 'adjective', definition: 'Lasting or existing for a long time or for ever.', example: '"The perennial appeal of classic literature."' },
+                { word: 'Nefarious', pronunciation: '/nɪˈfɛəriəs/', type: 'adjective', definition: 'Wicked or criminal.', example: '"The villain\'s nefarious plans were foiled by the hero."' },
+                { word: 'Solitude', pronunciation: '/ˈsɒlɪtjuːd/', type: 'noun', definition: 'The state of being alone without being lonely.', example: '"He found solace in the solitude of the library."' },
+                { word: 'Eloquence', pronunciation: '/ˈɛləkwəns/', type: 'noun', definition: 'Fluent or persuasive speaking or writing.', example: '"His eloquence moved the entire audience to tears."' },
+                { word: 'Limerence', pronunciation: '/ˈlɪmərəns/', type: 'noun', definition: 'The state of being infatuated with another person.', example: '"He was in a state of limerence, unable to think of anyone else."' },
+                { word: 'Syzygy', pronunciation: '/ˈsɪzɪdʒi/', type: 'noun', definition: 'A conjunction or alignment of celestial bodies.', example: '"The planets were in syzygy, a rare astronomical event."' },
+                { word: 'Defenestration', pronunciation: '/diːˌfɛnɪˈstreɪʃən/', type: 'noun', definition: 'The act of throwing someone or something out of a window.', example: '"The defenestration of the outdated rules was long overdue."' },
+                { word: 'Kleptocracy', pronunciation: '/ˌklɛptəˈkræsi/', type: 'noun', definition: 'A government where corrupt leaders exploit national resources.', example: '"The regime had devolved into a kleptocracy."' },
+                { word: 'Philocalist', pronunciation: '/ˌfɪləˈkælɪst/', type: 'noun', definition: 'A lover of beauty; someone who finds beauty in all things.', example: '"As a true philocalist, she saw art in everyday life."' },
+                { word: 'Raconteur', pronunciation: '/ˌrækɒnˈtɜːr/', type: 'noun', definition: 'A person who tells anecdotes in a skilful and amusing way.', example: '"Grandpa was a wonderful raconteur with a story for every occasion."' },
+                { word: 'Saudade', pronunciation: '/saʊˈdɑːdə/', type: 'noun', definition: 'A deep emotional state of nostalgic longing for something or someone.', example: '"Listening to fado music filled her with saudade for her homeland."' },
+                { word: 'Evanescent', pronunciation: '/ˌɛvəˈnɛsənt/', type: 'adjective', definition: 'Soon passing out of sight, memory, or existence; quickly fading.', example: '"The evanescent beauty of cherry blossoms reminds us to cherish each moment."' },
+                { word: 'Pensive', pronunciation: '/ˈpɛnsɪv/', type: 'adjective', definition: 'Engaged in deep or serious thought.', example: '"She sat by the window, pensive and quiet, watching the rain fall."' },
+                { word: 'Halcyon', pronunciation: '/ˈhælsiən/', type: 'adjective', definition: 'Denoting a period of time that is happy, peaceful, and prosperous.', example: '"He often recalled the halcyon days of his youth."' },
+                { word: 'Ebullient', pronunciation: '/ɪˈbʌliənt/', type: 'adjective', definition: 'Cheerful and full of energy; enthusiastically excited.', example: '"The ebullient crowd cheered as the author took the stage."' },
+                { word: 'Propitious', pronunciation: '/prəˈpɪʃəs/', type: 'adjective', definition: 'Indicating a good chance of success; favourable.', example: '"The clear skies were a propitious sign for the book fair."' },
+                { word: 'Sagacious', pronunciation: '/səˈɡeɪʃəs/', type: 'adjective', definition: 'Having or showing keen mental discernment and good judgement.', example: '"The sagacious librarian always knew which book would inspire a reluctant reader."' },
+                { word: 'Tenacious', pronunciation: '/tɪˈneɪʃəs/', type: 'adjective', definition: 'Tending to keep a firm hold of something; persistent.', example: '"Her tenacious dedication to reading made her the school\'s top reviewer."' },
+                { word: 'Resplendent', pronunciation: '/rɪˈsplɛndənt/', type: 'adjective', definition: 'Impressive and attractive; dazzling in appearance.', example: '"The library was resplendent with autumn light streaming through the windows."' },
+                { word: 'Iridescent', pronunciation: '/ˌɪrɪˈdɛsənt/', type: 'adjective', definition: 'Showing luminous colours that seem to change when seen from different angles.', example: '"The cover of the book was iridescent, shimmering with shades of blue and green."' },
+                { word: 'Penumbra', pronunciation: '/pɪˈnʌmbrə/', type: 'noun', definition: 'A partial shadow or an area of uncertainty.', example: '"The story dwelled in a moral penumbra where right and wrong blurred."' },
+                { word: 'Vicarious', pronunciation: '/vɪˈkɛriəs/', type: 'adjective', definition: 'Experienced through the feelings or actions of another person.', example: '"Reading allows us to live vicariously through the characters."' },
+                { word: 'Assiduous', pronunciation: '/əˈsɪdjuəs/', type: 'adjective', definition: 'Showing great care and perseverance; diligent.', example: '"The assiduous student read every book on the summer list."' },
+                { word: 'Languid', pronunciation: '/ˈlæŋɡwɪd/', type: 'adjective', definition: 'Displaying or having a disinclination for physical exertion; slow and relaxed.', example: '"A languid afternoon spent reading in the hammock was exactly what she needed."' },
+                { word: 'Opulent', pronunciation: '/ˈɒpjʊlənt/', type: 'adjective', definition: 'Ostentatiously rich and luxurious or lavish.', example: '"The opulent prose painted a world of grand palaces and velvet curtains."' },
+                { word: 'Surreptitious', pronunciation: '/ˌsʌrəpˈtɪʃəs/', type: 'adjective', definition: 'Kept secret, especially because it would not be approved of.', example: '"She took a surreptitious glance at the final chapter before class."' },
+                { word: 'Inexorable', pronunciation: '/ɪnˈɛksərəbəl/', type: 'adjective', definition: 'Impossible to stop or prevent; unyielding.', example: '"The inexorable march of time was a central theme of the novel."' },
+                { word: 'Perspicacious', pronunciation: '/ˌpɜːspɪˈkeɪʃəs/', type: 'adjective', definition: 'Having a ready insight into and understanding of things.', example: '"The perspicacious reader guessed the twist in the first chapter."' },
+                { word: 'Magnanimous', pronunciation: '/mæɡˈnænɪməs/', type: 'adjective', definition: 'Generous or forgiving, especially towards a rival.', example: '"The magnanimous author praised all the other nominees."' },
+                { word: 'Taciturn', pronunciation: '/ˈtæsɪtɜːn/', type: 'adjective', definition: 'Reserved or uncommunicative in speech; saying little.', example: '"The taciturn librarian spoke only when necessary, but her eyes said everything."' },
+                { word: 'Obfuscate', pronunciation: '/ˈɒbfʌskeɪt/', type: 'verb', definition: 'To render obscure, unclear, or unintelligible.', example: '"The author\'s tendency to obfuscate made the novel frustrating to read."' },
+                { word: 'Cacophony', pronunciation: '/kəˈkɒfəni/', type: 'noun', definition: 'A harsh discordant mixture of sounds.', example: '"The cafeteria was a cacophony of voices, but she found her quiet corner to read."' },
+                { word: 'Lachrymose', pronunciation: '/ˈlækrɪməʊs/', type: 'adjective', definition: 'Inducing tears; sad or mournful.', example: '"The lachrymose ending left the entire class in tears."' },
+                { word: 'Ebullition', pronunciation: '/ˌɛbʊˈlɪʃən/', type: 'noun', definition: 'A sudden outburst of emotion or violence.', example: '"The protagonist\'s ebullition of joy upon finding the lost manuscript was palpable."' },
+                { word: 'Recalcitrant', pronunciation: '/rɪˈkælsɪtrənt/', type: 'adjective', definition: 'Having an obstinately uncooperative attitude.', example: '"The recalcitrant student refused to read anything outside his favourite genre."' },
+                { word: 'Aplomb', pronunciation: '/əˈplɒm/', type: 'noun', definition: 'Self-confidence or assurance, especially when in a demanding situation.', example: '"She answered the difficult questions with remarkable aplomb."' },
+                { word: 'Bucolic', pronunciation: '/bjuːˈkɒlɪk/', type: 'adjective', definition: 'Relating to the pleasant aspects of the countryside and country life.', example: '"The bucolic setting of the novel made her long for a simpler life."' },
+                { word: 'Ephemeral', pronunciation: '/ɪˈfemərəl/', type: 'adjective', definition: 'Lasting for a very short time.', example: '"Fame in the digital age is ephemeral."' },
+                { word: 'Cognizant', pronunciation: '/ˈkɒɡnɪzənt/', type: 'adjective', definition: 'Having knowledge or being aware of something.', example: '"The author was cognizant of her responsibility to represent the culture accurately."' },
+                { word: 'Diaphanous', pronunciation: '/daɪˈæfənəs/', type: 'adjective', definition: 'Light, delicate, and translucent.', example: '"The diaphanous curtains filtered the morning light into the library."' },
+                { word: 'Ebullient', pronunciation: '/ɪˈbʌliənt/', type: 'adjective', definition: 'Cheerful and full of energy.', example: '"The ebullient reviewer gave every book she loved a five-star rating."' },
+                { word: 'Fastidious', pronunciation: '/fæˈstɪdiəs/', type: 'adjective', definition: 'Very attentive to and concerned about accuracy and detail.', example: '"The fastidious editor caught every typo in the manuscript."' },
+                { word: 'Gregarious', pronunciation: '/ɡrɪˈɡɛriəs/', type: 'adjective', definition: 'Fond of company; sociable.', example: '"The gregarious book club members met every Thursday without fail."' },
+                { word: 'Harbinger', pronunciation: '/ˈhɑːbɪndʒər/', type: 'noun', definition: 'A person or thing that announces or signals the approach of another.', example: '"The first frost was a harbinger of the long winter ahead."' },
+                { word: 'Iconoclast', pronunciation: '/aɪˈkɒnəklæst/', type: 'noun', definition: 'A person who attacks cherished beliefs or institutions.', example: '"The iconoclast author challenged every convention of the genre."' },
+                { word: 'Juxtapose', pronunciation: '/ˈdʒʌkstəpəʊz/', type: 'verb', definition: 'To place close together for contrasting effect.', example: '"The novel juxtaposes wealth and poverty in Victorian England."' },
+                { word: 'Kinetic', pronunciation: '/kɪˈnɛtɪk/', type: 'adjective', definition: 'Relating to or resulting from motion.', example: '"The kinetic energy of the protagonist\'s journey drove the plot forward."' },
+                { word: 'Labyrinthine', pronunciation: '/ˌlæbəˈrɪnθaɪn/', type: 'adjective', definition: 'Like a labyrinth; irregular and twisting.', example: '"The labyrinthine plot kept readers guessing until the final chapter."' },
+                { word: 'Maelstrom', pronunciation: '/ˈmeɪlstrɒm/', type: 'noun', definition: 'A situation of confused movement or violent turmoil.', example: '"The city was a maelstrom of activity during the book festival."' },
+                { word: 'Nascent', pronunciation: '/ˈnæsənt/', type: 'adjective', definition: 'Just beginning to develop.', example: '"Her nascent love for reading blossomed into a lifelong passion."' },
+                { word: 'Ostentatious', pronunciation: '/ˌɒstɛnˈteɪʃəs/', type: 'adjective', definition: 'Characterized by vulgar or pretentious display.', example: '"The ostentatious cover design did not match the subtle story within."' },
+                { word: 'Pragmatic', pronunciation: '/præɡˈmætɪk/', type: 'adjective', definition: 'Dealing with things sensibly and realistically.', example: '"The pragmatic reader chose books based on reviews, not covers."' },
+                { word: 'Querulous', pronunciation: '/ˈkwɛrʊləs/', type: 'adjective', definition: 'Complaining in a petulant or whining manner.', example: '"The querulous critic found fault with every book he reviewed."' },
+                { word: 'Rambunctious', pronunciation: '/ræmˈbʌŋkʃəs/', type: 'adjective', definition: 'Uncontrollably exuberant; boisterous.', example: '"The rambunctious children finally settled down during story time."' },
+                { word: 'Sycophant', pronunciation: '/ˈsɪkəfænt/', type: 'noun', definition: 'A person who acts obsequiously towards someone to gain advantage.', example: '"The sycophant praised the author\'s every word insincerely."' },
+                { word: 'Tantamount', pronunciation: '/ˈtæntəmaʊnt/', type: 'adjective', definition: 'Equivalent in seriousness to; virtually the same as.', example: '"Not reading the book is tantamount to ignoring its message."' },
+                { word: 'Ubiquitous', pronunciation: '/juːˈbɪkwɪtəs/', type: 'adjective', definition: 'Present, appearing, or found everywhere.', example: '"Smartphones are ubiquitous among today\'s readers."' },
+                { word: 'Venerable', pronunciation: '/ˈvɛnərəbl/', type: 'adjective', definition: 'Accorded great respect due to age, wisdom, or character.', example: '"The venerable library had stood for over a hundred years."' },
+                { word: 'Whimsical', pronunciation: '/ˈwɪmzɪkəl/', type: 'adjective', definition: 'Playfully quaint or fanciful.', example: '"The whimsical illustrations brought the fairy tale to life."' },
+                { word: 'Xenial', pronunciation: '/ˈziːniəl/', type: 'adjective', definition: 'Relating to hospitality towards guests.', example: '"The xenial atmosphere of the bookshop made everyone feel welcome."' },
+                { word: 'Yearning', pronunciation: '/ˈjɜːnɪŋ/', type: 'noun', definition: 'A feeling of intense longing for something.', example: '"The novel captured the yearning for adventure that all young people feel."' },
+                { word: 'Zealous', pronunciation: '/ˈzɛləs/', type: 'adjective', definition: 'Having or showing great energy or enthusiasm for a cause.', example: '"The zealous librarian organized reading programs every summer."' },
+                { word: 'Ambivalent', pronunciation: '/æmˈbɪvələnt/', type: 'adjective', definition: 'Having mixed feelings or contradictory ideas about something.', example: '"She felt ambivalent about the ending—it was beautiful but sad."' },
+                { word: 'Benevolent', pronunciation: '/bɪˈnɛvələnt/', type: 'adjective', definition: 'Well-meaning and kindly.', example: '"The benevolent teacher donated books to every student."' },
+                { word: 'Capricious', pronunciation: '/kəˈprɪʃəs/', type: 'adjective', definition: 'Given to sudden changes of mood or behaviour.', example: '"The capricious plot twists kept readers on their toes."' },
+                { word: 'Deleterious', pronunciation: '/ˌdɛlɪˈtɪəriəs/', type: 'adjective', definition: 'Causing harm or damage.', example: '"The deleterious effects of censorship were the novel\'s central theme."' },
+                { word: 'Erudite', pronunciation: '/ˈɛrʊdaɪt/', type: 'adjective', definition: 'Having or showing great knowledge or learning.', example: '"The erudite author referenced dozens of classic works in her speech."' },
+                { word: 'Fortuitous', pronunciation: '/fɔːˈtjuːɪtəs/', type: 'adjective', definition: 'Happening by accident or chance rather than design.', example: '"The fortuitous discovery of the first edition made his day."' },
+                { word: 'Garrulous', pronunciation: '/ˈɡærʊləs/', type: 'adjective', definition: 'Excessively talkative, especially on trivial matters.', example: '"The garrulous narrator shared every detail of his journey."' },
+                { word: 'Heretical', pronunciation: '/hɪˈrɛtɪkəl/', type: 'adjective', definition: 'Holding an opinion contrary to accepted beliefs.', example: '"Her heretical views on the classic novel sparked heated debate."' },
+                { word: 'Immutable', pronunciation: '/ɪˈmjuːtəbl/', type: 'adjective', definition: 'Unchanging over time or unable to be changed.', example: '"The love of reading was an immutable part of her identity."' },
+                { word: 'Jocular', pronunciation: '/ˈdʒɒkjʊlər/', type: 'adjective', definition: 'Fond of or characterized by joking; humorous.', example: '"The jocular tone of the book made it a delightful read."' },
+                { word: 'Kismet', pronunciation: '/ˈkɪzmɛt/', type: 'noun', definition: 'Destiny or fate.', example: '"Finding that rare book felt like kismet."' },
+                { word: 'Loquacious', pronunciation: '/ləˈkweɪʃəs/', type: 'adjective', definition: 'Tending to talk a great deal; talkative.', example: '"The loquacious protagonist narrated every thought aloud."' },
+                { word: 'Malevolent', pronunciation: '/məˈlɛvələnt/', type: 'adjective', definition: 'Having or showing a wish to do evil to others.', example: '"The malevolent antagonist was one of literature\'s greatest villains."' },
+                { word: 'Nonchalant', pronunciation: '/ˈnɒnʃələnt/', type: 'adjective', definition: 'Feeling or appearing casually calm and relaxed.', example: '"She was surprisingly nonchalant about winning the book award."' },
+                { word: 'Obsequious', pronunciation: '/əbˈsiːkwiəs/', type: 'adjective', definition: 'Obedient or attentive to an excessive degree.', example: '"The obsequious assistant agreed with every opinion the author expressed."' },
+                { word: 'Pertinacious', pronunciation: '/ˌpɜːtɪˈneɪʃəs/', type: 'adjective', definition: 'Holding firmly to an opinion or course of action.', example: '"The pertinacious reader finished the thousand-page novel in one weekend."' },
+                { word: 'Quiescent', pronunciation: '/kwiˈɛsənt/', type: 'adjective', definition: 'In a state or period of inactivity or dormancy.', example: '"The library was quiescent in the early morning hours."' },
+                { word: 'Reticent', pronunciation: '/ˈrɛtɪsənt/', type: 'adjective', definition: 'Not revealing one\'s thoughts or feelings readily.', example: '"The reticent author rarely gave interviews about his work."' },
+                { word: 'Sardonic', pronunciation: '/sɑːˈdɒnɪk/', type: 'adjective', definition: 'Grimly mocking or cynical.', example: '"The sardonic narrator\'s wit made even tragedy amusing."' },
+                { word: 'Trepidation', pronunciation: '/ˌtrɛpɪˈdeɪʃən/', type: 'noun', definition: 'A feeling of fear or agitation about something that may happen.', example: '"She opened the package with trepidation, hoping it was the book she ordered."' },
+                { word: 'Unctuous', pronunciation: '/ˈʌŋktʃuəs/', type: 'adjective', definition: 'Excessively flattering or ingratiating; oily.', example: '"The unctuous salesman recommended books no one wanted to read."' },
+                { word: 'Vociferous', pronunciation: '/vəˈsɪfərəs/', type: 'adjective', definition: 'Vehement or clamorous in expression.', example: '"The vociferous debate about the book\'s merit lasted for hours."' },
+            ];
+
+            const weeklyQuotes = [
+                { text: '"A reader lives a thousand lives before he dies. The man who never reads lives only one."', author: 'George R.R. Martin' },
+                { text: '"The only thing you absolutely have to know is the location of the library."', author: 'Albert Einstein' },
+                { text: '"I have always imagined that Paradise will be a kind of library."', author: 'Jorge Luis Borges' },
+                { text: '"Books are a uniquely portable magic."', author: 'Stephen King' },
+                { text: '"There is no friend as loyal as a book."', author: 'Ernest Hemingway' },
+                { text: '"A room without books is like a body without a soul."', author: 'Marcus Tullius Cicero' },
+                { text: '"So many books, so little time."', author: 'Frank Zappa' },
+                { text: '"The man who does not read has no advantage over the man who cannot read."', author: 'Mark Twain' },
+                { text: '"Reading is to the mind what exercise is to the body."', author: 'Joseph Addison' },
+                { text: '"Books are the mirrors of the soul."', author: 'Virginia Woolf' },
+                { text: '"Once you learn to read, you will be forever free."', author: 'Frederick Douglass' },
+                { text: '"The library is the temple of learning, and learning has liberated more people than all the wars in history."', author: 'Carl T. Rowan' },
+                { text: '"Literature is the most agreeable way of ignoring life."', author: 'Fernando Pessoa' },
+                { text: '"In a good book the best is between the lines."', author: 'Swedish Proverb' },
+                { text: '"A book is a dream that you hold in your hands."', author: 'Neil Gaiman' },
+                { text: '"Reading gives us someplace to go when we have to stay where we are."', author: 'Mason Cooley' },
+                { text: '"Words are, in my not-so-humble opinion, our most inexhaustible source of magic."', author: 'J.K. Rowling' },
+                { text: '"There are no faster or firmer friendships than those formed between people who love the same books."', author: 'Irving Stone' },
+                { text: '"The story is not in the plot, but in the telling."', author: 'Ursula K. Le Guin' },
+                { text: '"Imagination is the only weapon in the war against reality."', author: 'Lewis Carroll' },
+                { text: '"What she was finding also was how one book led to another, doors opening wherever she turned."', author: 'Marilynne Robinson' },
+                { text: '"I cannot live without books."', author: 'Thomas Jefferson' },
+                { text: '"The reading of all good books is like a conversation with the finest minds of past centuries."', author: 'René Descartes' },
+                { text: '"Books are the quietest and most constant of friends."', author: 'Charles William Eliot' },
+                { text: '"Sometimes you never know the value of a moment until it becomes a memory."', author: 'Dr. Seuss' },
+                { text: '"The world was hers for the reading."', author: 'Betty Smith' },
+                { text: '"A book is a gift you can open again and again."', author: 'Garrison Keillor' },
+                { text: '"Reading is an act of civilization; it\'s one of the greatest acts of civilization."', author: 'Kurt Vonnegut' },
+                { text: '"The best books... are those that tell you what you know already."', author: 'George Orwell' },
+                { text: '"We read to know we are not alone."', author: 'C.S. Lewis' },
+                { text: '"A great book should leave you with many experiences, and slightly exhausted."', author: 'William Styron' },
+                { text: '"Never trust anyone who has not brought a book with them."', author: 'Lemony Snicket' },
+                { text: '"You can never get a cup of tea large enough or a book long enough."', author: 'C.S. Lewis' },
+                { text: '"Books are the carriers of civilization."', author: 'Barbara W. Tuchman' },
+                { text: '"That\'s the thing about books. They let you travel without moving your feet."', author: 'Jhumpa Lahiri' },
+                { text: '"A library is not a luxury but one of the necessities of life."', author: 'Henry Ward Beecher' },
+                { text: '"No two persons ever read the same book."', author: 'Edmund Wilson' },
+                { text: '"The book to read is not the one which thinks for you, but the one which makes you think."', author: 'Harper Lee' },
+                { text: '"Literature is the most agreeable way of ignoring life."', author: 'Fernando Pessoa' },
+                { text: '"I have always imagined that Paradise will be a kind of library."', author: 'Jorge Luis Borges' },
+                { text: '"A room without books is like a body without a soul."', author: 'Marcus Tullius Cicero' },
+                { text: '"The person who deserves most pity is a lonesome one on a rainy day who doesn\'t know how to read."', author: 'Benjamin Franklin' },
+                { text: '"Fairy tales are more than true: not because they tell us that dragons exist, but because they tell us that dragons can be beaten."', author: 'Neil Gaiman' },
+                { text: '"Sleep is good, but books are better."', author: 'George R.R. Martin' },
+                { text: '"One glance at a book and you hear the voice of another person."', author: 'Marcus Tullius Cicero' },
+                { text: '"The reading of all good books is like a conversation with the finest minds of past centuries."', author: 'René Descartes' },
+                { text: '"Read the best books first, or you may not have a chance to read them at all."', author: 'Henry David Thoreau' },
+                { text: '"Where is human nature so weak as in the bookstore?"', author: 'Henry Ward Beecher' },
+                { text: '"A book is a dream that you hold in your hands."', author: 'Neil Gaiman' },
+                { text: '"The more that you read, the more things you will know."', author: 'Dr. Seuss' },
+                { text: '"Books are the bees which carry the quickening pollen from one to another."', author: 'James Russell Lowell' },
+            ];
+
+            async function updateWeeklyContent() {
+                // Show today's date
+                var dateEl = $('todayDate');
+                if (dateEl) {
+                    var now = new Date();
+                    dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                }
+
+                // Rotate school photos — slide to the left
+                var slidesContainer = $('heroSlides');
+                if (slidesContainer) {
+                    var photos = ['photo1.jpg', 'photo2.jpg', 'photo3.png'];
+                    // Create slide elements
+                    photos.forEach(function(src) {
+                        var div = document.createElement('div');
+                        div.className = 'hero-slide';
+                        div.style.backgroundImage = 'url(' + src + ')';
+                        slidesContainer.appendChild(div);
+                    });
+                    // Clone first slide at the end for seamless loop
+                    var firstClone = slidesContainer.firstElementChild.cloneNode(true);
+                    slidesContainer.appendChild(firstClone);
+
+                    var slideIndex = 0;
+                    function slideNext() {
+                        slideIndex++;
+                        slidesContainer.style.transform = 'translateX(-' + (slideIndex * 100) + '%)';
+                        // When we reach the clone, jump back to real first without animation
+                        if (slideIndex === photos.length) {
+                            setTimeout(function() {
+                                slidesContainer.style.transition = 'none';
+                                slideIndex = 0;
+                                slidesContainer.style.transform = 'translateX(0)';
+                                // Re-enable transition after a tiny delay
+                                setTimeout(function() {
+                                    slidesContainer.style.transition = 'transform 0.8s ease-in-out';
+                                }, 20);
+                            }, 800);
+                        }
+                    }
+                    slidesContainer.style.transition = 'transform 0.8s ease-in-out';
+                    setInterval(slideNext, 5000);
+                }
+
+                // Word of the Week — deterministically shuffled, unrepeated
+                var startDate = new Date('2026-06-01');
+                var today = new Date();
+                var weekIndex = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000));
+                if (weekIndex < 0) weekIndex = 0;
+                // Word of the Week — shuffled, cycles forever with new order each cycle
+                var startDate = new Date('2026-06-01');
+                var today = new Date();
+                var weekIndex = Math.floor((today - startDate) / (7 * 24 * 60 * 60 * 1000));
+                if (weekIndex < 0) weekIndex = 0;
+                var listLen = weeklyWords.length;
+                var cycle = Math.floor(weekIndex / listLen);
+                var idxInCycle = weekIndex % listLen;
+                // Build a shuffled copy for this cycle
+                var seed = 20260601 + cycle;
+                var cycleWords = weeklyWords.slice();
+                function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+                for (var i = cycleWords.length - 1; i > 0; i--) {
+                    var j = Math.floor(rnd() * (i + 1));
+                    var tmp = cycleWords[i]; cycleWords[i] = cycleWords[j]; cycleWords[j] = tmp;
+                }
+                // Cache for vocab page use
+                window._shuffledWords = cycleWords;
+                var wordEntry = cycleWords[idxInCycle];
+                if (wordEntry && $('wordOfWeek')) {
+                    $('wordOfWeek').textContent = wordEntry.word;
+                    $('wordPronunciation').textContent = wordEntry.pronunciation + ' • ' + wordEntry.type;
+                    $('wordDefinition').textContent = wordEntry.definition;
+                    $('wordExample').textContent = wordEntry.example;
+                    // Try to enrich with real data from Free Dictionary API
+                    try {
+                        var dictRes = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(wordEntry.word));
+                        if (dictRes.ok) {
+                            var dictData = await dictRes.json();
+                            if (dictData && dictData[0]) {
+                                var entry = dictData[0];
+                                if (entry.phonetic) $('wordPronunciation').textContent = entry.phonetic + ' • ' + wordEntry.type;
+                                var meaning = entry.meanings && entry.meanings[0];
+                                if (meaning) {
+                                    var def = meaning.definitions && meaning.definitions[0];
+                                    if (def && def.definition) $('wordDefinition').textContent = def.definition;
+                                    if (def && def.example) $('wordExample').textContent = '"' + def.example + '"';
+                                }
+                            }
+                        }
+                    } catch (e) { /* Dictionary API unavailable, use built-in data */ }
+                }
+
+                var quoteEntry = weekIndex < weeklyQuotes.length ? weeklyQuotes[weekIndex] : null;
+                if (quoteEntry && $('quoteOfWeek')) {
+                    $('quoteOfWeek').textContent = quoteEntry.text;
+                    $('quoteAuthor').textContent = '— ' + quoteEntry.author;
+                }
+            }
+
+            // ==================== UTILITY ====================
+            function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+            function $(id) { return document.getElementById(id); }
+
+            function $$(sel) { return document.querySelectorAll(sel); }
+
+            function show(el) { if (el) el.classList.remove('hidden'); }
+            function hide(el) { if (el) el.classList.add('hidden'); }
+
+            // ==================== DATA LAYER ====================
+            async function fetchPosts() {
+                if (!isOnline()) return [];
+                const { data, error } = await supabase
+                    .from('posts')
+                    .select('*, comments(*)')
+                    .order('created_at', { ascending: false });
+                if (error) { console.error('fetchPosts error:', error); return []; }
+                return data || [];
+            }
+
+            async function fetchPostById(postId) {
+                if (!isOnline()) return null;
+                const { data, error } = await supabase
+                    .from('posts')
+                    .select('*, comments(*)')
+                    .eq('id', postId)
+                    .single();
+                if (error) { console.error('fetchPostById error:', error); return null; }
+                return data;
+            }
+
+            async function getProfile(userId) {
+                if (!isOnline()) return null;
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', userId)
+                    .single();
+                if (error && error.code !== 'PGRST116') console.error('getProfile error:', error);
+                return data || null;
+            }
+
+            async function getProfileByUsername(username) {
+                if (!isOnline()) return null;
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('username', username)
+                    .single();
+                if (error && error.code !== 'PGRST116') console.error('getProfileByUsername error:', error);
+                return data || null;
+            }
+
+            async function createProfile(userId, username, firstName, lastName, email) {
+                if (!isOnline()) return false;
+                const { error } = await supabase
+                    .from('profiles')
+                    .insert({ id: userId, username, first_name: firstName, last_name: lastName, email, avatar: '', bio: '', school_email: '' });
+                if (error) console.error('createProfile error:', error);
+                return !error;
+            }
+
+            async function autoGenerateUsername(firstName, lastName) {
+                if (!isOnline()) return null;
+                var base = firstName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + lastName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                // Remove consecutive dots
+                base = base.replace(/\.+/g, '.').replace(/^\.|\.$/g, '');
+                if (!base) base = 'user';
+                var username = base;
+                var attempt = 0;
+                while (attempt < 100) {
+                    const { data } = await supabase.from('profiles').select('username').eq('username', username).maybeSingle();
+                    if (!data) return username;
+                    attempt++;
+                    username = base + attempt;
+                }
+                return base + Date.now().toString(36);
+            }
+
+            // ==================== AUTH SYSTEM ====================
+            let currentSession = null;
+            let currentUser = null;
+            let renderedPostCount = 0;
+            let currentFilter = 'all';
+
+            async function initAuth() {
+                if (!isOnline()) { applyAuthUI(); return; }
+                const { data: { session } } = await supabase.auth.getSession();
+                currentSession = session;
+                if (session?.user) {
+                    const profile = await getProfile(session.user.id);
+                    currentUser = { ...session.user, ...(profile || {}) };
+                } else {
+                    currentUser = null;
+                }
+                applyAuthUI();
+
+                supabase.auth.onAuthStateChanged(async (event, session) => {
+                    currentSession = session;
+                    if (session?.user) {
+                        const profile = await getProfile(session.user.id);
+                        currentUser = { ...session.user, ...(profile || {}) };
+                    } else {
+                        currentUser = null;
+                    }
+                    applyAuthUI();
+                    if (currentFilter === 'myposts' && !currentUser) {
+                        currentFilter = 'all';
+                        activateFeedTab('feedTabAll');
+                    }
+                    renderedPostCount = 0;
+                    await renderPosts();
+                });
+            }
+
+            function isLoggedIn() { return !!currentUser; }
+
+            function requireAuth() {
+                if (!isLoggedIn()) {
+                    openAuthModal();
+                    showToast('Please sign in to share your thoughts', 'info');
+                    return false;
+                }
+                return true;
+            }
+
+            async function handleSignUp(e) {
+                e.preventDefault();
+                const firstName = $('signUpFirstName').value.trim();
+                const lastName = $('signUpLastName').value.trim();
+                const email = $('signUpEmail').value.trim();
+                const password = $('signUpPassword').value;
+                const confirm = $('signUpConfirm').value;
+
+                $$('.auth-input').forEach(i => i.classList.remove('error'));
+
+                if (!firstName) { showToast('Please enter your first name', 'error'); $('signUpFirstName').classList.add('error'); return; }
+                if (firstName.length < 1) { showToast('First name must be at least 1 character', 'error'); $('signUpFirstName').classList.add('error'); return; }
+                if (!lastName) { showToast('Please enter your last name', 'error'); $('signUpLastName').classList.add('error'); return; }
+                if (lastName.length < 1) { showToast('Last name must be at least 1 character', 'error'); $('signUpLastName').classList.add('error'); return; }
+                if (!email) { showToast('Please enter your email', 'error'); $('signUpEmail').classList.add('error'); return; }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Please enter a valid email', 'error'); $('signUpEmail').classList.add('error'); return; }
+                if (password.length < 6) { showToast('Password must be at least 6 characters', 'error'); $('signUpPassword').classList.add('error'); return; }
+                if (password !== confirm) { showToast('Passwords do not match', 'error'); $('signUpConfirm').classList.add('error'); return; }
+
+                if (!isOnline()) { showToast('Cannot sign up offline. Check your connection.', 'error'); return; }
+
+                var username = await autoGenerateUsername(firstName, lastName);
+                if (!username) { showToast('Failed to generate username. Check your connection.', 'error'); return; }
+
+                const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+                if (authError) {
+                    if (authError.message.includes('already registered')) {
+                        showToast('An account with this email already exists', 'error');
+                        $('signUpEmail').classList.add('error');
+                    } else {
+                        showToast(authError.message, 'error');
+                    }
+                    return;
+                }
+
+                if (authData?.user) {
+                    await createProfile(authData.user.id, username, firstName, lastName, email);
+                    currentSession = authData.session;
+                    const profile = await getProfile(authData.user.id);
+                    currentUser = { ...authData.user, ...(profile || {}) };
+                    applyAuthUI();
+                    closeAuthModal();
+                    showToast('Account created! Welcome, ' + firstName + ' 🎉', 'success');
+                    $('signUpForm').reset();
+                }
+            }
+
+            async function handleSignIn(e) {
+                e.preventDefault();
+                const email = $('signInEmail').value.trim();
+                const password = $('signInPassword').value;
+
+                $$('.auth-input').forEach(i => i.classList.remove('error'));
+
+                if (!email) { showToast('Please enter your email', 'error'); $('signInEmail').classList.add('error'); return; }
+                if (!password) { showToast('Please enter your password', 'error'); $('signInPassword').classList.add('error'); return; }
+
+                if (!isOnline()) { showToast('Cannot sign in offline. Check your connection.', 'error'); return; }
+
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) {
+                    if (error.message.includes('Invalid login credentials')) {
+                        showToast('Incorrect password', 'error');
+                        $('signInPassword').classList.add('error');
+                    } else {
+                        showToast(error.message, 'error');
+                    }
+                    return;
+                }
+
+                if (data?.user) {
+                    currentSession = data.session;
+                    const profile = await getProfile(data.user.id);
+                    currentUser = { ...data.user, ...(profile || {}) };
+                    applyAuthUI();
+                    closeAuthModal();
+                    showToast('Welcome back, ' + (currentUser.first_name || currentUser.username || currentUser.email) + '!', 'success');
+                    $('signInForm').reset();
+                }
+            }
+
+            async function handleSignOut() {
+                if (isOnline()) await supabase.auth.signOut();
+                currentSession = null;
+                currentUser = null;
+                applyAuthUI();
+                closeDropdown();
+                showToast('You\'ve been signed out', 'info');
+            }
+
+            // ==================== UI: AUTH STATE ====================
+            function applyAuthUI() {
+                const signInBtn = $('signInBtn');
+                const userMenu = $('userMenu');
+                var myPostsTab = $('feedTabMyPosts');
+
+                if (isLoggedIn()) {
+                    hide(signInBtn);
+                    show(userMenu);
+                    show(myPostsTab);
+                    var displayName = (currentUser.first_name && currentUser.last_name)
+                        ? currentUser.first_name + ' ' + currentUser.last_name
+                        : (currentUser.username || currentUser.email);
+                    $('userDisplayName').textContent = displayName;
+                    $('dropdownUsername').textContent = displayName;
+                    $('dropdownEmail').textContent = currentUser.email || '';
+                    var avatar = currentUser.avatar || '';
+                    if (avatar) {
+                        $('userAvatarImg').src = avatar;
+                        $('userAvatarImg').classList.remove('hidden');
+                        $('userAvatarText').classList.add('hidden');
+                    } else {
+                        var initial = (currentUser.first_name || currentUser.username || 'U').charAt(0).toUpperCase();
+                        $('userAvatarText').textContent = initial;
+                        $('userAvatarText').classList.remove('hidden');
+                        $('userAvatarImg').classList.add('hidden');
+                    }
+                } else {
+                    show(signInBtn);
+                    hide(userMenu);
+                    hide(myPostsTab);
+                    if (currentFilter === 'myposts') {
+                        currentFilter = 'all';
+                        activateFeedTab('feedTabAll');
+                    }
+                }
+            }
+
+            function openAuthModal(tab) {
+                closeDropdown();
+                $('authModal').classList.add('active');
+                document.body.style.overflow = 'hidden';
+                if (tab === 'signup') switchAuthTab('signup');
+                else switchAuthTab('signin');
+            }
+
+            function closeAuthModal() {
+                $('authModal').classList.remove('active');
+                document.body.style.overflow = '';
+                // Reset forms
+                $('signInForm').reset();
+                $('signUpForm').reset();
+                $$('.auth-input').forEach(i => i.classList.remove('error'));
+            }
+
+            function switchAuthTab(tab) {
+                if (tab === 'signup') {
+                    $('tabSignUp').classList.add('active');
+                    $('tabSignIn').classList.remove('active');
+                    $('signUpForm').classList.remove('hidden');
+                    $('signInForm').classList.add('hidden');
+                    $('authModalTitle').textContent = 'Create Account';
+                } else {
+                    $('tabSignIn').classList.add('active');
+                    $('tabSignUp').classList.remove('active');
+                    $('signInForm').classList.remove('hidden');
+                    $('signUpForm').classList.add('hidden');
+                    $('authModalTitle').textContent = 'Welcome';
+                }
+            }
+
+            function closeDropdown() {
+                $('userDropdown').classList.remove('active');
+            }
+
+            function toggleDropdown(e) {
+                e.stopPropagation();
+                $('userDropdown').classList.toggle('active');
+            }
+
+            // ==================== TOAST ====================
+            let toastTimer = null;
+
+            function showToast(message, type) {
+                const toast = $('toast');
+                toast.textContent = message;
+                toast.className = 'toast ' + type;
+                // Force reflow
+                void toast.offsetWidth;
+                toast.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 3000);
+            }
+
+            // ==================== POST SYSTEM ====================
+            async function renderPosts() {
+                const feed = $('postsFeed');
+                const allPostsRaw = await fetchPosts();
+
+                // Map DB fields to render format
+                var allPosts = allPostsRaw.map(function(p) {
+                    return {
+                        id: p.id,
+                        type: p.type,
+                        bookTitle: p.book_title,
+                        author: p.author,
+                        rating: p.rating,
+                        content: p.content,
+                        tags: p.tags || [],
+                        username: p.username,
+                        avatarSeed: p.avatar_seed || Math.floor(Math.random() * 500),
+                        bookCoverSeed: p.book_cover_seed || Math.floor(Math.random() * 500),
+                        bookCover: p.book_cover || '',
+                        createdAt: new Date(p.created_at).getTime(),
+                        likes: p.likes || 0,
+                        liked: p.liked_by ? p.liked_by.includes(currentUser ? currentUser.username : '') : false,
+                        liked_by: p.liked_by || [],
+                        comments: (p.comments || []).map(function(c) {
+                            return {
+                                id: c.id,
+                                username: c.username,
+                                content: c.content,
+                                createdAt: new Date(c.created_at).getTime()
+                            };
+                        })
+                    };
+                });
+
+                // Filter
+                let filtered = allPosts;
+                if (currentFilter === 'reviews') filtered = allPosts.filter(p => p.type === 'Book Review');
+                else if (currentFilter === 'thoughts') filtered = allPosts.filter(p => p.type === 'Thoughts Dump');
+                else if (currentFilter === 'myposts') {
+                    if (!isLoggedIn()) { currentFilter = 'all'; filtered = allPosts; }
+                    else filtered = allPosts.filter(p => p.username === currentUser.username);
+                }
+
+                // Sort by newest first
+                filtered.sort((a, b) => b.createdAt - a.createdAt);
+
+                // Paginate
+                const toRender = filtered.slice(0, renderedPostCount + POSTS_PER_PAGE);
+                const hasMore = toRender.length < filtered.length;
+
+                feed.innerHTML = '';
+
+                if (toRender.length === 0) {
+                    var emptyMsg = currentFilter === 'myposts'
+                        ? 'You haven\'t posted anything yet. Share your first review!'
+                        : 'Be the first to share your thoughts!';
+                    feed.innerHTML = `
+                        <div class="bg-white rounded-xl p-10 card-shadow border border-primary/5 text-center">
+                            <div class="text-5xl mb-4">📚</div>
+                            <h3 class="text-lg font-bold text-gray-700 mb-2">No posts yet</h3>
+                            <p class="text-gray-500 text-sm">${emptyMsg}</p>
+                        </div>
+                    `;
+                    $('loadMoreBtn').classList.add('hidden');
+                    return;
+                }
+
+                for (let idx = 0; idx < toRender.length; idx++) { var post = toRender[idx];
+                    const timeAgo = getTimeAgo(post.createdAt);
+                    const ratingHTML = post.rating > 0 ? renderStars(post.rating) : '';
+                    const tagsHTML = (post.tags || []).map(t =>
+                        `<span class="text-xs bg-primary/5 text-primary/70 px-2 py-1 rounded font-medium">#${t}</span>`
+                    ).join('');
+
+                    // Use uploaded avatar for consistent profile picture
+                    var postAuthor = await getProfileByUsername(post.username);
+                    var avatarSrc = postAuthor && postAuthor.avatar
+                        ? postAuthor.avatar
+                        : 'https://picsum.photos/200/200?random=' + (post.avatarSeed || Math.floor(Math.random() * 500));
+                    var postDisplayName = postAuthor && postAuthor.first_name
+                        ? postAuthor.first_name + ' ' + (postAuthor.last_name || '')
+                        : post.username;
+                    var postDisplayInitial = postAuthor && postAuthor.first_name
+                        ? postAuthor.first_name.charAt(0).toUpperCase()
+                        : post.username.charAt(0).toUpperCase();
+
+                    const postEl = document.createElement('div');
+                    postEl.className = 'bg-white rounded-xl overflow-hidden card-shadow hover-lift border border-primary/5 post-enter';
+                    postEl.style.animationDelay = (idx * 0.05) + 's';
+
+                    const commentCount = Array.isArray(post.comments) ? post.comments.length : (post.comments || 0);
+                    const commentsHTML = await renderComments(post.comments || []);
+
+                    postEl.innerHTML = `
+                        <div class="p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center">
+                                    <img src="${avatarSrc}" alt="${postDisplayName}"
+                                         class="w-10 h-10 rounded-full mr-3 ring-2 ring-secondary/20 user-avatar cursor-pointer hover:ring-primary/40 transition-all"
+                                         data-username="${post.username}"
+                                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                                    <div class="w-10 h-10 rounded-full mr-3 ring-2 ring-secondary/20 bg-gradient-to-br from-primary to-secondary items-center justify-center text-white text-sm font-bold hidden cursor-pointer hover:ring-primary/40 transition-all user-avatar-fallback" style="display:none" data-username="${post.username}">
+                                        ${postDisplayInitial}
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium cursor-pointer hover:text-primary transition-colors user-name" data-username="${post.username}">${postDisplayName}</h3>
+                                        <p class="text-xs text-gray-500">${timeAgo} • ${post.type}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    ${post.rating > 0 ? `<span class="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full font-medium">⭐ ${post.rating}/5</span>` : ''}
+                                    ${currentUser && post.username === currentUser.username ? `
+                                    <div class="flex items-center space-x-1 ml-2">
+                                        <button class="w-7 h-7 rounded-full hover:bg-primary/10 flex items-center justify-center text-gray-400 hover:text-primary transition-colors edit-btn" data-post-id="${post.id}" title="Edit">
+                                            <i class="fa fa-pencil text-xs"></i>
+                                        </button>
+                                        <button class="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors delete-btn" data-post-id="${post.id}" title="Delete">
+                                            <i class="fa fa-trash-o text-xs"></i>
+                                        </button>
+                                    </div>` : ''}
+                                </div>
+                            </div>
+
+                            <div class="flex mb-4">
+                                <img src="${post.bookCover || 'https://picsum.photos/120/180?random=' + (post.bookCoverSeed || Math.floor(Math.random() * 500))}" alt="${post.bookTitle}"
+                                     class="w-20 h-28 object-cover rounded mr-4 shadow-sm">
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-lg mb-1">${post.bookTitle}</h4>
+                                    ${post.author ? `<p class="text-sm text-gray-600 mb-3">${post.author}</p>` : ''}
+                                    <a href="https://thisdllibrary.com" target="_blank"
+                                       class="inline-flex items-center text-sm bg-secondary/15 text-primary px-3 py-1.5 rounded-lg hover:bg-secondary/30 transition-colors">
+                                        <i class="fa fa-check-circle mr-1"></i>
+                                        Check Availability in Library
+                                    </a>
+                                </div>
+                            </div>
+
+                            <p class="text-gray-700 mb-4">${post.content}</p>
+
+                            <div class="flex items-center justify-between text-gray-500">
+                                <div class="flex space-x-6">
+                                    <button class="flex items-center hover:text-primary transition-colors group like-btn" data-post-id="${post.id}">
+                                        <i class="fa ${post.liked ? 'fa-heart text-primary' : 'fa-heart-o'} mr-1 group-hover:scale-110 transition-transform"></i>
+                                        <span class="text-sm like-count">${post.likes || 0}</span>
+                                    </button>
+                                    <button class="flex items-center hover:text-primary transition-colors group comment-toggle" data-post-id="${post.id}">
+                                        <i class="fa fa-comment-o mr-1 group-hover:scale-110 transition-transform"></i>
+                                        <span class="text-sm comment-count">${commentCount}</span>
+                                    </button>
+                                    <button class="flex items-center hover:text-primary transition-colors">
+                                        <i class="fa fa-bookmark-o mr-1"></i>
+                                    </button>
+                                </div>
+                                ${tagsHTML}
+                            </div>
+
+                            <!-- Comment Section -->
+                            <div class="comment-section hidden mt-4 pt-4 border-t border-gray-100" data-post-id="${post.id}">
+                                <div class="comments-list space-y-3 mb-3">
+                                    ${commentsHTML}
+                                </div>
+                                <div class="flex items-start space-x-3">
+                                    <div class="flex-1">
+                                        <textarea class="comment-input w-full p-2.5 rounded-lg border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" rows="2" placeholder="Write a comment..." data-post-id="${post.id}"></textarea>
+                                    </div>
+                                    <button class="comment-submit bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 self-end" data-post-id="${post.id}">
+                                        <i class="fa fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    feed.appendChild(postEl);
+                }
+
+                // Attach like handlers
+                feed.querySelectorAll('.like-btn').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        const postId = this.dataset.postId;
+                        await handleLike(postId, this);
+                    });
+                });
+
+                // Attach comment toggle handlers
+                feed.querySelectorAll('.comment-toggle').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const postId = this.dataset.postId;
+                        const section = feed.querySelector('.comment-section[data-post-id="' + postId + '"]');
+                        if (section) {
+                            section.classList.toggle('hidden');
+                            // Scroll into view when opening
+                            if (!section.classList.contains('hidden')) {
+                                setTimeout(() => {
+                                    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                }, 50);
+                            }
+                        }
+                    });
+                });
+
+                // Attach comment submit handlers
+                feed.querySelectorAll('.comment-submit').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        const postId = this.dataset.postId;
+                        const input = feed.querySelector('.comment-input[data-post-id="' + postId + '"]');
+                        if (input) await handleCommentSubmit(postId, input);
+                    });
+                });
+
+                // Allow Enter to submit comments
+                feed.querySelectorAll('.comment-input').forEach(input => {
+                    input.addEventListener('keydown', async function(e) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            const postId = this.dataset.postId;
+                            await handleCommentSubmit(postId, this);
+                        }
+                    });
+                });
+
+                // Attach edit handlers
+                feed.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        var postId = this.dataset.postId;
+                        if (!isLoggedIn()) return;
+                        var post = await fetchPostById(postId);
+                        if (!post || post.username !== currentUser.username) return;
+                        openEditPostModal({
+                            id: post.id,
+                            type: post.type,
+                            bookTitle: post.book_title,
+                            author: post.author,
+                            rating: post.rating,
+                            content: post.content,
+                            tags: post.tags || [],
+                            username: post.username
+                        });
+                    });
+                });
+
+                // Attach delete handlers
+                feed.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        var postId = this.dataset.postId;
+                        if (!isLoggedIn()) return;
+                        var post = await fetchPostById(postId);
+                        if (!post || post.username !== currentUser.username) return;
+                        if (confirm('Delete this post? This cannot be undone.')) {
+                            if (!isOnline()) { showToast('Cannot delete while offline', 'error'); return; }
+                            await supabase.from('posts').delete().eq('id', postId);
+                            renderedPostCount = 0;
+                            await renderPosts();
+                            showToast('Post deleted', 'info');
+                        }
+                    });
+                });
+
+                $('loadMoreBtn').classList.toggle('hidden', !hasMore && toRender.length >= filtered.length);
+                renderedPostCount = toRender.length;
+            }
+
+            async function renderRecentPosts() {
+                var container = $('recentPosts');
+                if (!container) return;
+                if (!isOnline()) {
+                    container.innerHTML = '<div class="text-center py-8 text-gray-400"><p class="text-sm">Unavailable offline</p></div>';
+                    return;
+                }
+                const { data: posts } = await supabase
+                    .from('posts')
+                    .select('*')
+                    .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+                if (!posts || posts.length === 0) {
+                    container.innerHTML = '<div class="text-center py-8 text-gray-400"><p class="text-sm">No posts yet today. Be the first to share!</p></div>';
+                    return;
+                }
+                // Batch fetch profiles
+                var uniqueUsernames = [...new Set(posts.map(function(p) { return p.username; }))];
+                var profileMap = {};
+                for (var u = 0; u < uniqueUsernames.length; u++) {
+                    var prof = await getProfileByUsername(uniqueUsernames[u]);
+                    if (prof) profileMap[uniqueUsernames[u]] = prof;
+                }
+                var html = '<div class="space-y-4">';
+                for (var p = 0; p < posts.length; p++) {
+                    var post = posts[p];
+                    var prof = profileMap[post.username];
+                    var displayName = (prof && prof.first_name) ? prof.first_name + ' ' + (prof.last_name || '') : post.username;
+                    var initial = (prof && prof.first_name) ? prof.first_name.charAt(0).toUpperCase() : (post.username || 'U').charAt(0).toUpperCase();
+                    var avatarSrc = (prof && prof.avatar) ? prof.avatar : '';
+                    var timeAgo = getTimeAgo(new Date(post.created_at).getTime());
+                    var ratingHTML = post.rating > 0 ? '<span class="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full font-medium">⭐ ' + post.rating + '/5</span>' : '';
+                    var tagsHTML = (post.tags || []).map(function(t) { return '<span class="text-xs bg-primary/5 text-primary/70 px-2 py-1 rounded font-medium">#' + t + '</span>'; }).join('');
+                    var cover = post.book_cover || '';
+                    html += '<div class="bg-white rounded-xl overflow-hidden card-shadow border border-primary/5">' +
+                        '<div class="p-5">' +
+                        '<div class="flex items-center justify-between mb-4">' +
+                        '<div class="flex items-center">' +
+                        (avatarSrc ? '<img src="' + avatarSrc + '" class="w-10 h-10 rounded-full mr-3 ring-2 ring-secondary/20 object-cover">' : '<div class="w-10 h-10 rounded-full mr-3 ring-2 ring-secondary/20 bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-bold">' + initial + '</div>') +
+                        '<div>' +
+                        '<h3 class="font-medium text-sm">' + escapeHtml(displayName) + '</h3>' +
+                        '<p class="text-xs text-gray-500">' + timeAgo + ' • ' + escapeHtml(post.type) + '</p>' +
+                        '</div></div>' +
+                        (ratingHTML ? '<div>' + ratingHTML + '</div>' : '') +
+                        '</div>' +
+                        '<div class="flex mb-4">' +
+                        (cover ? '<img src="' + cover + '" alt="" class="w-20 h-28 object-cover rounded mr-4 shadow-sm" onerror="this.style.display=\'none\'">' : '<div class="w-20 h-28 rounded mr-4 bg-primary/5 flex items-center justify-center flex-shrink-0"><i class="fa fa-book text-primary/30 text-2xl"></i></div>') +
+                        '<div class="flex-1">' +
+                        '<h4 class="font-bold text-lg mb-1">' + escapeHtml(post.book_title) + '</h4>' +
+                        (post.author ? '<p class="text-sm text-gray-600 mb-3">' + escapeHtml(post.author) + '</p>' : '') +
+                        '<a href="https://thisdllibrary.com" target="_blank" class="inline-flex items-center text-sm bg-secondary/15 text-primary px-3 py-1.5 rounded-lg hover:bg-secondary/30 transition-colors"><i class="fa fa-check-circle mr-1"></i>Check Availability in Library</a>' +
+                        '</div></div>' +
+                        '<p class="text-gray-700 mb-4">' + escapeHtml(post.content || '') + '</p>' +
+                        '<div class="flex items-center justify-between text-gray-500">' +
+                        '<div class="flex space-x-6">' +
+                        '<button class="flex items-center hover:text-primary transition-colors like-btn" data-post-id="' + post.id + '"><i class="fa fa-heart-o mr-1"></i><span class="text-sm like-count">' + (post.likes || 0) + '</span></button>' +
+                        '<button class="flex items-center hover:text-primary transition-colors comment-toggle" data-post-id="' + post.id + '"><i class="fa fa-comment-o mr-1"></i><span class="text-sm comment-count">0</span></button>' +
+                        '</div>' +
+                        tagsHTML +
+                        '</div></div></div>';
+                html += '</div>';
+                container.innerHTML = html;
+            }
+            }
+
+            async function renderVocabs() {
+                var feed = $('postsFeed');
+                var loadMoreBtn = $('loadMoreBtn');
+                loadMoreBtn.classList.add('hidden');
+
+                var startDate = new Date('2025-06-02');
+                var today = new Date();
+                var msPerWeek = 7 * 24 * 60 * 60 * 1000;
+                var currentWeek = Math.floor((today - startDate) / msPerWeek);
+                if (currentWeek < 0) currentWeek = 0;
+
+                // Show all past weeks (including current)
+                var totalWeeks = Math.min(currentWeek + 1, weeklyWords.length);
+                if (totalWeeks === 0) {
+                    feed.innerHTML = '<div class="bg-white rounded-xl p-10 card-shadow border border-primary/5 text-center">' +
+                        '<div class="text-5xl mb-4">📖</div>' +
+                        '<h3 class="text-lg font-bold text-gray-700 mb-2">No vocabulary yet</h3>' +
+                        '<p class="text-gray-500 text-sm">Words will appear here each Monday.</p></div>';
+                    return;
+                }
+
+                var html = '<div class="space-y-4">';
+                for (var w = totalWeeks - 1; w >= 0; w--) {
+                    var wordEntry = weeklyWords[w];
+                    var weekStart = new Date(startDate.getTime() + w * msPerWeek);
+                    var weekEnd = new Date(weekStart.getTime() + 6 * msPerWeek);
+                    var dateStr = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' — ' +
+                                  weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+                    html += '<div class="bg-white rounded-xl p-5 card-shadow border border-primary/5 hover-lift">' +
+                        '<div class="flex items-start justify-between mb-2">' +
+                        '<h3 class="text-lg font-bold text-primary">' + wordEntry.word + '</h3>' +
+                        '<span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">' + dateStr + '</span>' +
+                        '</div>' +
+                        '<p class="text-sm text-gray-500 mb-2">' + wordEntry.pronunciation + ' • ' + wordEntry.type + '</p>' +
+                        '<p class="text-gray-700 mb-1">' + wordEntry.definition + '</p>' +
+                        '<p class="text-gray-500 italic text-sm">' + wordEntry.example + '</p>' +
+                        '</div>';
+                }
+                html += '</div>';
+                feed.innerHTML = html;
+            }
+
+            function renderStars(count) {
+                let s = '';
+                for (let i = 1; i <= 5; i++) {
+                    if (i <= count) s += '<i class="fa fa-star text-yellow-400"></i>';
+                    else if (i - 0.5 <= count) s += '<i class="fa fa-star-half-o text-yellow-400"></i>';
+                    else s += '<i class="fa fa-star-o text-yellow-400"></i>';
+                }
+                return s;
+            }
+
+            async function renderComments(comments) {
+                if (!comments || !Array.isArray(comments) || comments.length === 0) {
+                    return '<p class="text-sm text-gray-400 italic">No comments yet. Be the first!</p>';
+                }
+
+                // Batch-fetch profiles for unique comment authors
+                var uniqueUsernames = [...new Set(comments.map(function(c) { return c.username; }))];
+                var profilesMap = {};
+                if (isOnline()) {
+                    for (var i = 0; i < uniqueUsernames.length; i++) {
+                        var prof = await getProfileByUsername(uniqueUsernames[i]);
+                        if (prof) profilesMap[uniqueUsernames[i]] = prof;
+                    }
+                }
+
+                return comments.map(function(c) {
+                    var commentAuthor = profilesMap[c.username];
+                    var commentName = commentAuthor && commentAuthor.first_name
+                        ? commentAuthor.first_name + ' ' + (commentAuthor.last_name || '')
+                        : c.username;
+                    var commentInitial = commentAuthor && commentAuthor.first_name
+                        ? commentAuthor.first_name.charAt(0).toUpperCase()
+                        : c.username.charAt(0).toUpperCase();
+                    return '<div class="flex items-start space-x-2">' +
+                        '<div class="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">' +
+                        commentInitial +
+                        '</div>' +
+                        '<div class="flex-1 bg-gray-50 rounded-lg px-3 py-2">' +
+                        '<p class="text-xs font-medium text-gray-700 cursor-pointer hover:text-primary user-name" data-username="' + escapeHtml(c.username) + '">' + escapeHtml(commentName) + '</p>' +
+                        '<p class="text-sm text-gray-600">' + escapeHtml(c.content) + '</p>' +
+                        '<p class="text-xs text-gray-400 mt-1">' + getTimeAgo(c.createdAt) + '</p>' +
+                        '</div>' +
+                        '</div>';
+                }).join('');
+            }
+
+            function escapeHtml(str) {
+                var div = document.createElement('div');
+                div.appendChild(document.createTextNode(str));
+                return div.innerHTML;
+            }
+
+            async function handleCommentSubmit(postId, inputEl) {
+                if (!requireAuth()) return;
+                var content = inputEl.value.trim();
+                if (!content) { showToast('Please write something', 'error'); return; }
+
+                if (!isOnline()) { showToast('Cannot post comment while offline', 'error'); return; }
+
+                const { data: newComment, error } = await supabase
+                    .from('comments')
+                    .insert({
+                        id: uid(),
+                        post_id: postId,
+                        user_id: currentUser.id,
+                        username: currentUser.username,
+                        content: content
+                    })
+                    .select()
+                    .single();
+
+                if (error) { showToast('Failed to post comment', 'error'); return; }
+
+                // Update UI
+                var section = document.querySelector('.comment-section[data-post-id="' + postId + '"]');
+                if (section) {
+                    var list = section.querySelector('.comments-list');
+                    if (list) {
+                        var emptyMsg = list.querySelector('.text-gray-400.italic');
+                        if (emptyMsg) emptyMsg.remove();
+                        var commentEl = document.createElement('div');
+                        commentEl.className = 'flex items-start space-x-2 post-enter';
+                        var curDisplayName = (currentUser.first_name && currentUser.last_name)
+                            ? currentUser.first_name + ' ' + currentUser.last_name
+                            : (currentUser.username || 'User');
+                        var curInitial = (currentUser.first_name || currentUser.username || 'U').charAt(0).toUpperCase();
+                        commentEl.innerHTML =
+                            '<div class="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">' +
+                            curInitial +
+                            '</div>' +
+                            '<div class="flex-1 bg-gray-50 rounded-lg px-3 py-2">' +
+                            '<p class="text-xs font-medium text-gray-700">' + escapeHtml(curDisplayName) + '</p>' +
+                            '<p class="text-sm text-gray-600">' + escapeHtml(content) + '</p>' +
+                            '<p class="text-xs text-gray-400 mt-1">Just now</p>' +
+                            '</div>';
+                        list.appendChild(commentEl);
+                    }
+                }
+
+                // Update comment count
+                var toggle = document.querySelector('.comment-toggle[data-post-id="' + postId + '"]');
+                if (toggle) {
+                    var countEl = toggle.querySelector('.comment-count');
+                    countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+                }
+
+                inputEl.value = '';
+                showToast('Comment posted!', 'success');
+            }
+
+            // ==================== PROFILE ====================
+            function openProfileModal() {
+                if (!isLoggedIn()) return;
+                closeDropdown();
+                if (!currentUser) { showToast('User data not found', 'error'); return; }
+
+                var initial = (currentUser.first_name || currentUser.username || 'U').charAt(0).toUpperCase();
+                var avatar = currentUser.avatar || '';
+                if (avatar) {
+                    $('profileAvatarImg').src = avatar;
+                    $('profileAvatarImg').classList.remove('hidden');
+                    $('profileAvatarInitial').classList.add('hidden');
+                } else {
+                    $('profileAvatarInitial').textContent = initial;
+                    $('profileAvatarInitial').classList.remove('hidden');
+                    $('profileAvatarImg').classList.add('hidden');
+                }
+
+                $('profileFirstName').value = currentUser.first_name || '';
+                $('profileLastName').value = currentUser.last_name || '';
+                $('profileSchoolEmail').value = currentUser.email || '';
+                $('profileBio').value = currentUser.bio || '';
+                $('bioCharCount').textContent = (currentUser.bio || '').length;
+
+                $('profileModal').classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            async function saveProfile(e) {
+                e.preventDefault();
+                if (!isLoggedIn()) return;
+
+                var firstName = $('profileFirstName').value.trim();
+                var lastName = $('profileLastName').value.trim();
+                var bio = $('profileBio').value.trim();
+                if (bio.length > 200) { showToast('Bio must be under 200 characters', 'error'); return; }
+
+                if (!isOnline()) { showToast('Cannot save profile while offline', 'error'); return; }
+
+                if (!firstName || !lastName) { showToast('First and last name are required', 'error'); return; }
+
+                const { error } = await supabase.from('profiles').upsert({
+                    id: currentUser.id,
+                    first_name: firstName,
+                    last_name: lastName,
+                    bio: bio,
+                    school_email: currentUser.email,
+                    username: currentUser.username || (firstName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + lastName.toLowerCase().replace(/[^a-z0-9]/g, '')),
+                    email: currentUser.email
+                });
+
+                if (error) { showToast('Failed to save profile', 'error'); return; }
+
+                currentUser.first_name = firstName;
+                currentUser.last_name = lastName;
+                currentUser.bio = bio;
+                currentUser.school_email = currentUser.email;
+
+                $('profileModal').classList.remove('active');
+                document.body.style.overflow = '';
+                applyAuthUI();
+                showToast('Profile saved!', 'success');
+            }
+
+            function handleAvatarUpload(e) {
+                if (!isLoggedIn() || !e.target.files || !e.target.files[0]) return;
+                var file = e.target.files[0];
+                if (file.size > 2 * 1024 * 1024) {
+                    showToast('Image must be under 2MB', 'error');
+                    return;
+                }
+                var reader = new FileReader();
+                reader.onload = async function(ev) {
+                    var dataUrl = ev.target.result;
+                    if (!isOnline()) { showToast('Cannot save avatar while offline', 'error'); return; }
+                    const { error } = await supabase.from('profiles').update({ avatar: dataUrl }).eq('id', currentUser.id);
+                    if (error) { showToast('Failed to update avatar', 'error'); return; }
+                    currentUser.avatar = dataUrl;
+                    $('profileAvatarImg').src = dataUrl;
+                    $('profileAvatarImg').classList.remove('hidden');
+                    $('profileAvatarInitial').classList.add('hidden');
+                    applyAuthUI();
+                    showToast('Profile picture updated!', 'success');
+                };
+                reader.readAsDataURL(file);
+            }
+
+            // ==================== USER PROFILE VIEWER ====================
+            async function openUserProfile(username) {
+                closeDropdown();
+                if (!isOnline()) { showToast('Cannot view profiles offline', 'error'); return; }
+                var user = await getProfileByUsername(username);
+                if (!user) { showToast('User not found', 'error'); return; }
+
+                var displayName = user.first_name
+                    ? user.first_name + ' ' + (user.last_name || '')
+                    : user.username;
+                $('userProfileName').textContent = displayName;
+                var initial = (user.first_name || user.username || 'U').charAt(0).toUpperCase();
+                var imgEl = $('userProfileAvatarImg');
+                var initialEl = $('userProfileAvatarInitial');
+
+                if (user.avatar) {
+                    imgEl.src = user.avatar;
+                    imgEl.classList.remove('hidden');
+                    initialEl.classList.add('hidden');
+                } else {
+                    initialEl.textContent = initial;
+                    initialEl.classList.remove('hidden');
+                    imgEl.classList.add('hidden');
+                }
+
+                $('userProfileEmail').textContent = user.school_email ? '✉️ ' + user.school_email : '';
+                $('userProfileBio').textContent = user.bio || 'No bio yet.';
+
+                $$('.up-tab').forEach(function(t) { t.classList.remove('active', 'text-primary', 'border-primary');
+                    t.classList.add('text-gray-500'); t.style.borderBottom = 'none'; });
+                var postsTab = document.querySelector('.up-tab[data-tab="posts"]');
+                postsTab.classList.add('active', 'text-primary', 'border-primary');
+                postsTab.style.borderBottom = '2px solid #6d28d9';
+
+                hide($('upCommentsContent'));
+                show($('upPostsContent'));
+                hide($('upEmptyState'));
+
+                await renderUserPosts(username);
+                await renderUserComments(username);
+
+                $('userProfileModal').classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            async function renderUserPosts(username) {
+                var container = $('upPostsContent');
+                if (!isOnline()) { container.innerHTML = '<div class="text-center py-6 text-gray-400"><p class="text-sm">Unavailable offline</p></div>'; return; }
+                const { data: posts } = await supabase
+                    .from('posts')
+                    .select('*')
+                    .eq('username', username)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                if (!posts || posts.length === 0) {
+                    container.innerHTML = '<div class="text-center py-6 text-gray-400"><p class="text-sm">No posts yet.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = posts.map(function(p) {
+                    var timeAgo = getTimeAgo(new Date(p.created_at).getTime());
+                    var stars = p.rating > 0 ? '⭐'.repeat(p.rating) : '';
+                    return '<div class="bg-gray-50 rounded-lg px-4 py-3 border border-gray-100">' +
+                        '<div class="flex items-center justify-between mb-1">' +
+                        '<span class="text-xs text-gray-400">' + timeAgo + ' • ' + p.type + '</span>' +
+                        (stars ? '<span class="text-xs">' + stars + '</span>' : '') +
+                        '</div>' +
+                        '<p class="text-sm font-medium text-gray-800">' + escapeHtml(p.book_title) + '</p>' +
+                        '<p class="text-xs text-gray-500 mt-1 line-clamp-2">' + escapeHtml(p.content) + '</p>' +
+                        '</div>';
+                }).join('');
+            }
+
+            async function renderUserComments(username) {
+                var container = $('upCommentsContent');
+                if (!isOnline()) { container.innerHTML = '<div class="text-center py-6 text-gray-400"><p class="text-sm">Unavailable offline</p></div>'; return; }
+                const { data: commentsData } = await supabase
+                    .from('comments')
+                    .select('*, posts!inner(book_title, id)')
+                    .eq('username', username)
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+
+                if (!commentsData || commentsData.length === 0) {
+                    container.innerHTML = '<div class="text-center py-6 text-gray-400"><p class="text-sm">No comments yet.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = commentsData.map(function(c) {
+                    var timeAgo = getTimeAgo(new Date(c.created_at).getTime());
+                    return '<div class="bg-gray-50 rounded-lg px-4 py-3 border border-gray-100">' +
+                        '<p class="text-xs text-gray-400">on <span class="font-medium text-gray-600">' + escapeHtml(c.posts.book_title) + '</span> • ' + timeAgo + '</p>' +
+                        '<p class="text-sm text-gray-600 mt-1">' + escapeHtml(c.content) + '</p>' +
+                        '</div>';
+                }).join('');
+            }
+
+            function getTimeAgo(ts) {
+                const diff = Date.now() - ts;
+                const mins = Math.floor(diff / 60000);
+                if (mins < 1) return 'Just now';
+                if (mins < 60) return mins + 'm ago';
+                const hours = Math.floor(mins / 60);
+                if (hours < 24) return hours + 'h ago';
+                const days = Math.floor(hours / 24);
+                if (days < 7) return days + 'd ago';
+                return new Date(ts).toLocaleDateString();
+            }
+
+            async function handleLike(postId, btnEl) {
+                if (!requireAuth()) return;
+                if (!isOnline()) { showToast('Cannot like while offline', 'error'); return; }
+                var username = currentUser.username;
+                const { data: post } = await supabase
+                    .from('posts')
+                    .select('liked_by, likes')
+                    .eq('id', postId)
+                    .single();
+                if (!post) return;
+                var likedBy = post.liked_by || [];
+                var isLiked = likedBy.includes(username);
+                var newLikedBy, newLikes;
+                if (isLiked) {
+                    newLikedBy = likedBy.filter(function(u) { return u !== username; });
+                    newLikes = Math.max(0, (post.likes || 1) - 1);
+                } else {
+                    newLikedBy = likedBy.concat([username]);
+                    newLikes = (post.likes || 0) + 1;
+                }
+                await supabase.from('posts').update({
+                    liked_by: newLikedBy,
+                    likes: newLikes
+                }).eq('id', postId);
+                const icon = btnEl.querySelector('.fa');
+                const count = btnEl.querySelector('.like-count');
+                icon.className = isLiked ? 'fa fa-heart-o mr-1 group-hover:scale-110 transition-transform' : 'fa fa-heart text-primary mr-1 group-hover:scale-110 transition-transform';
+                count.textContent = newLikes;
+            }
+
+            // ==================== POST CREATION ====================
+            let selectedRating = 0;
+
+            function openPostModal() {
+                if (!requireAuth()) return;
+                closeDropdown();
+                $('editingPostId').value = '';
+                $('postForm').querySelector('button[type="submit"]').innerHTML = '<i class="fa fa-paper-plane mr-2"></i>Publish Post';
+                $('postModal').querySelector('h2').textContent = 'Create a Post';
+                $('postModal').querySelectorAll('p')[0].textContent = 'Share your thoughts with the THISDL community';
+                selectedRating = 0;
+                $('postRating').value = '0';
+                updateStarDisplay();
+                $('postForm').reset();
+                $('charCount').textContent = '0';
+                // Reset cover
+                window.uploadedBookCover = '';
+                $('coverPreview').classList.add('hidden');
+                $('removeCover').classList.add('hidden');
+                $('postModal').classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function openEditPostModal(post) {
+                closeDropdown();
+                $('editingPostId').value = post.id;
+                $('postForm').querySelector('button[type="submit"]').innerHTML = '<i class="fa fa-save mr-2"></i>Update Post';
+                $('postModal').querySelector('h2').textContent = 'Edit Post';
+                $('postModal').querySelectorAll('p')[0].textContent = 'Update your thoughts';
+                // Set type
+                var typeRadios = document.querySelectorAll('input[name="postType"]');
+                typeRadios.forEach(function(r) { r.checked = r.value === post.type; });
+                typeRadios.forEach(function(r) {
+                    if (r.value === 'Book Review') {
+                        $('postRatingGroup').style.display = '';
+                    } else {
+                        $('postRatingGroup').style.display = 'none';
+                    }
+                });
+                $('postBookTitle').value = post.bookTitle || '';
+                $('postAuthor').value = post.author || '';
+                selectedRating = post.rating || 0;
+                $('postRating').value = selectedRating;
+                updateStarDisplay();
+                $('postContent').value = post.content || '';
+                $('charCount').textContent = (post.content || '').length;
+                $('postTags').value = (post.tags || []).join(', ');
+                // Show existing cover
+                window.uploadedBookCover = post.bookCover || '';
+                if (window.uploadedBookCover) {
+                    $('coverPreviewImg').src = window.uploadedBookCover;
+                    $('coverPreview').classList.remove('hidden');
+                    $('removeCover').classList.remove('hidden');
+                } else {
+                    $('coverPreview').classList.add('hidden');
+                    $('removeCover').classList.add('hidden');
+                }
+                $('postModal').classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closePostModal() {
+                $('postModal').classList.remove('active');
+                document.body.style.overflow = '';
+                // Reset cover
+                window.uploadedBookCover = '';
+                $('coverPreview').classList.add('hidden');
+                $('removeCover').classList.add('hidden');
+                $('coverUpload').value = '';
+            }
+
+            async function findBookCover() {
+                var title = $('postBookTitle').value.trim();
+                var author = $('postAuthor').value.trim();
+                if (!title) return;
+
+                var statusEl = $('coverStatus');
+                statusEl.textContent = 'Searching for cover...';
+                statusEl.className = 'text-xs text-gray-400 mt-1';
+
+                var isbn = null;
+
+                // Try 1: Google Books API (works on most school networks, handles CORS well)
+                try {
+                    var gQuery = encodeURIComponent('intitle:' + title + (author ? '+inauthor:' + author : ''));
+                    var gRes = await fetch('https://www.googleapis.com/books/v1/volumes?q=' + gQuery + '&maxResults=5');
+                    var gData = await gRes.json();
+                    if (gData.items && gData.items.length > 0) {
+                        for (var i = 0; i < gData.items.length; i++) {
+                            var ids = gData.items[i].volumeInfo.industryIdentifiers || [];
+                            for (var j = 0; j < ids.length; j++) {
+                                if (ids[j].type === 'ISBN_13' || ids[j].type === 'ISBN_10') {
+                                    isbn = ids[j].identifier.replace(/-/g, '');
+                                    break;
+                                }
+                            }
+                            if (isbn) break;
+                        }
+                    }
+                } catch (e) { /* Google Books failed */ }
+
+                // Try 2: Open Library search (fallback)
+                if (!isbn) {
+                    try {
+                        var query = encodeURIComponent(title + (author ? ' ' + author : ''));
+                        var res = await fetch('https://openlibrary.org/search.json?q=' + query + '&limit=5');
+                        var data = await res.json();
+                        if (data.docs && data.docs.length > 0) {
+                            var best = null;
+                            if (author) {
+                                var authorLower = author.toLowerCase();
+                                for (var i = 0; i < data.docs.length; i++) {
+                                    var docAuthor = (data.docs[i].author_name || []).join(' ').toLowerCase();
+                                    if (docAuthor.indexOf(authorLower) !== -1 && data.docs[i].isbn && data.docs[i].isbn.length > 0) {
+                                        best = data.docs[i]; break;
+                                    }
+                                }
+                            }
+                            if (!best) {
+                                for (var i = 0; i < data.docs.length; i++) {
+                                    if (data.docs[i].isbn && data.docs[i].isbn.length > 0) {
+                                        best = data.docs[i]; break;
+                                    }
+                                }
+                            }
+                            if (best && best.isbn && best.isbn.length > 0) isbn = best.isbn[0];
+                        }
+                    } catch (e) { /* Open Library failed */ }
+                }
+
+                // Try 3: <img> test with a guessed Google Books URL (works even when fetch is blocked)
+                if (!isbn) {
+                    statusEl.textContent = 'No cover found. You can upload one manually.';
+                    statusEl.className = 'text-xs text-orange-500 mt-1';
+                    return;
+                }
+
+                // Build the Google Books cover URL
+                window.uploadedBookCover = 'https://books.google.com/books/content?vid=ISBN:' + isbn + '&printsec=frontcover&img=1&zoom=1';
+                $('coverPreviewImg').src = window.uploadedBookCover;
+                $('coverPreview').classList.remove('hidden');
+                $('removeCover').classList.remove('hidden');
+                statusEl.textContent = '✓ Cover found!';
+                statusEl.className = 'text-xs text-green-600 mt-1';
+            }
+
+            function updateStarDisplay() {
+                $('starRating').querySelectorAll('.star-btn').forEach(btn => {
+                    const val = parseInt(btn.dataset.value);
+                    btn.classList.toggle('text-yellow-400', val <= selectedRating);
+                    btn.classList.toggle('text-gray-300', val > selectedRating);
+                });
+            }
+
+            var submittingPost = false;
+            async function handlePostSubmit(e) {
+                e.preventDefault();
+                if (!isLoggedIn()) return;
+                if (submittingPost) return; // Prevent double-submit
+                submittingPost = true;
+
+                var editId = $('editingPostId').value;
+                var type = document.querySelector('input[name="postType"]:checked').value;
+                var bookTitle = $('postBookTitle').value.trim();
+                var author = $('postAuthor').value.trim();
+                var content = $('postContent').value.trim();
+                var tagsStr = $('postTags').value.trim();
+
+                if (!bookTitle) { showToast('Please enter a book title', 'error'); submittingPost = false; return; }
+                if (!content || content.length < 10) { showToast('Please write at least 10 characters', 'error'); submittingPost = false; return; }
+
+                var tags = tagsStr ? tagsStr.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+
+                if (!isOnline()) { showToast('Cannot save post while offline', 'error'); submittingPost = false; return; }
+
+                // If no cover was found yet, do one final auto-search before saving
+                if (!window.uploadedBookCover && bookTitle) {
+                    await findBookCover();
+                }
+
+                if (editId) {
+                    const { error } = await supabase.from('posts').update({
+                        type: type,
+                        book_title: bookTitle,
+                        author: author,
+                        rating: type === 'Book Review' ? selectedRating : 0,
+                        content: content,
+                        tags: tags,
+                        book_cover: window.uploadedBookCover || ''
+                    }).eq('id', editId);
+                    if (error) { showToast('Failed to update post', 'error'); submittingPost = false; return; }
+                    closePostModal();
+                    showToast('Post updated!', 'success');
+                } else {
+                    const { error } = await supabase.from('posts').insert({
+                        id: uid(),
+                        user_id: currentUser.id,
+                        type: type,
+                        book_title: bookTitle,
+                        author: author,
+                        rating: type === 'Book Review' ? selectedRating : 0,
+                        content: content,
+                        tags: tags,
+                        username: currentUser.username,
+                        book_cover: window.uploadedBookCover || '',
+                        likes: 0,
+                        liked_by: []
+                    });
+                    if (error) { showToast('Failed to create post', 'error'); submittingPost = false; return; }
+                    closePostModal();
+                    showToast('Your post has been published! 📖', 'success');
+                }
+
+                submittingPost = false;
+
+                renderedPostCount = 0;
+                await renderPosts();
+            }
+
+            // ==================== EVENT BINDING ====================
+            function activateFeedTab(activeId) {
+                var tabs = ['feedTabAll', 'feedTabReviews', 'feedTabThoughts', 'feedTabMyPosts'];
+                tabs.forEach(function(id) {
+                    var el = $(id);
+                    if (!el) return;
+                    if (id === activeId) {
+                        el.className = 'whitespace-nowrap pb-3 border-b-2 border-primary text-primary font-medium';
+                    } else {
+                        el.className = 'whitespace-nowrap pb-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium';
+                    }
+                });
+            }
+
+            async function init() {
+                // Update weekly word and quote
+                try { await updateWeeklyContent(); } catch(e) { console.warn('Word update error:', e); }
+
+                // Render recent posts for home page (don't block on this)
+                renderRecentPosts().catch(function(e) {});
+
+                // Pre-render vocab page content
+                setTimeout(function() {
+                    try { renderVocabPage(); } catch(e) { console.warn('Vocab render error:', e); }
+                }, 100);
+
+                // Initialize auth (wrap in try-catch so UI listeners always attach)
+                try {
+                    await initAuth();
+                } catch (e) {
+                    console.warn('Supabase init failed (offline or CORS):', e);
+                }
+
+                renderedPostCount = 0;
+                try {
+                    await renderPosts();
+                } catch (e) {
+                    console.warn('Failed to load posts (offline or CORS):', e);
+                }
+
+                // --- Auth Modal ---
+                $('signInBtn').addEventListener('click', () => openAuthModal('signin'));
+                $('authModalClose').addEventListener('click', closeAuthModal);
+                $('authModal').addEventListener('click', function(e) {
+                    if (e.target === this) closeAuthModal();
+                });
+                $('tabSignIn').addEventListener('click', () => switchAuthTab('signin'));
+                $('tabSignUp').addEventListener('click', () => switchAuthTab('signup'));
+                $('switchToSignUp').addEventListener('click', () => switchAuthTab('signup'));
+                $('switchToSignIn').addEventListener('click', () => switchAuthTab('signin'));
+                $('signInForm').addEventListener('submit', handleSignIn);
+                $('signUpForm').addEventListener('submit', handleSignUp);
+
+                // --- User Menu ---
+                $('userAvatarBtn').addEventListener('click', toggleDropdown);
+                $('logoutBtn').addEventListener('click', handleSignOut);
+
+                // Close dropdown on outside click
+                document.addEventListener('click', function(e) {
+                    const dd = $('userDropdown');
+                    if (dd && dd.classList.contains('active') && !e.target.closest('#userMenu')) {
+                        closeDropdown();
+                    }
+                });
+
+                // --- Share Buttons ---
+                $('navShareBtn').addEventListener('click', openPostModal);
+                $('homeShareBtn').addEventListener('click', function() {
+                    navigateTo('posts');
+                    setTimeout(openPostModal, 200);
+                });
+                $('mobileShareBtn').addEventListener('click', openPostModal);
+
+                // --- Post Modal ---
+                $('postModalClose').addEventListener('click', closePostModal);
+                $('postModal').addEventListener('click', function(e) {
+                    if (e.target === this) closePostModal();
+                });
+                $('postForm').addEventListener('submit', handlePostSubmit);
+
+                // Star rating
+                $('starRating').querySelectorAll('.star-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        selectedRating = parseInt(this.dataset.value);
+                        $('postRating').value = selectedRating;
+                        updateStarDisplay();
+                    });
+                    btn.addEventListener('mouseenter', function() {
+                        const val = parseInt(this.dataset.value);
+                        $('starRating').querySelectorAll('.star-btn').forEach(b => {
+                            const bv = parseInt(b.dataset.value);
+                            b.classList.toggle('text-yellow-300', bv <= val);
+                            b.classList.toggle('text-gray-300', bv > val);
+                        });
+                    });
+                    btn.addEventListener('mouseleave', function() {
+                        updateStarDisplay();
+                    });
+                });
+
+                // Post type toggle
+                document.querySelectorAll('input[name="postType"]').forEach(r => {
+                    r.addEventListener('change', function() {
+                        const isReview = this.value === 'Book Review';
+                        $('postRatingGroup').style.display = isReview ? '' : 'none';
+                    });
+                });
+                // Trigger initial state
+                document.querySelector('input[name="postType"]:checked').dispatchEvent(new Event('change'));
+
+                // Char count
+                $('postContent').addEventListener('input', function() {
+                    $('charCount').textContent = this.value.length;
+                });
+
+                $('feedTabAll').addEventListener('click', async function() {
+                    currentFilter = 'all';
+                    activateFeedTab('feedTabAll');
+                    renderedPostCount = 0;
+                    await renderPosts();
+                });
+                $('feedTabReviews').addEventListener('click', async function() {
+                    currentFilter = 'reviews';
+                    activateFeedTab('feedTabReviews');
+                    renderedPostCount = 0;
+                    await renderPosts();
+                });
+                $('feedTabThoughts').addEventListener('click', async function() {
+                    currentFilter = 'thoughts';
+                    activateFeedTab('feedTabThoughts');
+                    renderedPostCount = 0;
+                    await renderPosts();
+                });
+                $('feedTabMyPosts').addEventListener('click', async function() {
+                    currentFilter = 'myposts';
+                    activateFeedTab('feedTabMyPosts');
+                    renderedPostCount = 0;
+                    await renderPosts();
+                });
+
+                // ========== NAVIGATION ==========
+                window.navigateTo = function(page) {
+                    // Update nav links
+                    document.querySelectorAll('.site-nav a[data-page]').forEach(function(el) {
+                        el.classList.toggle('active', el.dataset.page === page);
+                    });
+                    // Switch page sections
+                    document.querySelectorAll('.page-section').forEach(function(el) {
+                        el.classList.remove('active');
+                    });
+                    var section = document.getElementById('page-' + page);
+                    if (section) {
+                        section.classList.add('active');
+                    }
+                    // Special handling
+                    if (page === 'vocab') {
+                        renderVocabPage();
+                    } else if (page === 'posts') {
+                        renderedPostCount = 0;
+                        renderPosts();
+                    }
+                };
+
+                function renderVocabPage() {
+                    var container = $('vocabContent');
+                    if (!container) return;
+                    // Show ALL past and present words
+                    var shuffled = window._shuffledWords || weeklyWords;
+                    var totalWeeks = shuffled.length;
+                    if (totalWeeks === 0) {
+                        container.innerHTML = '<div class="text-center py-10 text-gray-400"><p>No vocabulary yet. Words appear each Monday.</p></div>';
+                        return;
+                    }
+                    var html = '<p class="text-sm text-gray-500 mb-4">' + totalWeeks + ' words — one per week</p>';
+                    html += '<div class="space-y-4">';
+                    // Start from Monday of this week
+                    var today = new Date();
+                    var dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+                    var mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // days to go back to Monday
+                    var thisMonday = new Date(today);
+                    thisMonday.setDate(today.getDate() + mondayOffset);
+                    thisMonday.setHours(0,0,0,0);
+                    var msPerWeek = 7 * 24 * 60 * 60 * 1000;
+                    for (var w = 0; w < totalWeeks; w++) {
+                        var wordEntry = shuffled[w];
+                        var weekStart = new Date(thisMonday.getTime() - w * msPerWeek);
+                        var oneDay = 24 * 60 * 60 * 1000;
+                        var weekEnd = new Date(weekStart.getTime() + 6 * oneDay);
+                        var dateStr = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' — ' +
+                                      weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        html += '<div class="bg-white rounded-xl p-5 card-shadow border border-primary/5 hover-lift">' +
+                            '<div class="flex items-start justify-between mb-2">' +
+                            '<h3 class="text-lg font-bold text-primary">' + wordEntry.word + '</h3>' +
+                            '<span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">' + dateStr + '</span>' +
+                            '</div>' +
+                            '<p class="text-sm text-gray-500 mb-2">' + wordEntry.pronunciation + ' • ' + wordEntry.type + '</p>' +
+                            '<p class="text-gray-700 mb-1">' + wordEntry.definition + '</p>' +
+                            '<p class="text-gray-500 italic text-sm">' + wordEntry.example + '</p>' +
+                            '</div>';
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                }
+
+                // Nav click handlers (delegation — more reliable)
+                document.querySelector('.site-nav').addEventListener('click', function(e) {
+                    var link = e.target.closest('a[data-page]');
+                    if (link) {
+                        e.preventDefault();
+                        navigateTo(link.dataset.page);
+                        return;
+                    }
+                    var filterLink = e.target.closest('a[data-filter]');
+                    if (filterLink) {
+                        e.preventDefault();
+                        navigateTo('posts');
+                        var filter = filterLink.dataset.filter;
+                        if (filter === 'all') { currentFilter = 'all'; activateFeedTab('feedTabAll'); }
+                        else if (filter === 'reviews') { currentFilter = 'reviews'; activateFeedTab('feedTabReviews'); }
+                        else if (filter === 'thoughts') { currentFilter = 'thoughts'; activateFeedTab('feedTabThoughts'); }
+                        else if (filter === 'myposts') {
+                            if (!isLoggedIn()) { showToast('Please sign in first', 'info'); openAuthModal('signin'); return; }
+                            currentFilter = 'myposts'; activateFeedTab('feedTabMyPosts');
+                        }
+                        renderedPostCount = 0;
+                        renderPosts();
+                    }
+                });
+                // Dropdown hover
+                document.querySelectorAll('.nav-dropdown').forEach(function(dd) {
+                    dd.addEventListener('mouseenter', function() {
+                        this.querySelector('.nav-dropdown-content').classList.add('show');
+                    });
+                    dd.addEventListener('mouseleave', function() {
+                        this.querySelector('.nav-dropdown-content').classList.remove('show');
+                    });
+                });
+                // Load More
+                $('loadMoreBtn').addEventListener('click', async function() {
+                    await renderPosts();
+                });
+
+                // --- Profile Modal ---
+                $('profileBtn').addEventListener('click', openProfileModal);
+                $('profileModalClose').addEventListener('click', function() {
+                    $('profileModal').classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+                $('profileModal').addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        $('profileModal').classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                });
+                $('profileForm').addEventListener('submit', saveProfile);
+                $('avatarUpload').addEventListener('change', handleAvatarUpload);
+                // Book cover upload
+                window.uploadedBookCover = '';
+                $('coverUpload').addEventListener('change', function(e) {
+                    if (!e.target.files || !e.target.files[0]) return;
+                    var file = e.target.files[0];
+                    if (file.size > 2 * 1024 * 1024) { showToast('Image must be under 2MB', 'error'); return; }
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        window.uploadedBookCover = ev.target.result;
+                        $('coverPreviewImg').src = window.uploadedBookCover;
+                        $('coverPreview').classList.remove('hidden');
+                        $('removeCover').classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                });
+                $('removeCover').addEventListener('click', function() {
+                    window.uploadedBookCover = '';
+                    $('coverPreview').classList.add('hidden');
+                    $('removeCover').classList.add('hidden');
+                    $('coverUpload').value = '';
+                    $('coverStatus').textContent = '';
+                });
+                // Auto-search book cover when user types title
+                var coverSearchTimer = null;
+                function triggerCoverSearch() {
+                    if (coverSearchTimer) clearTimeout(coverSearchTimer);
+                    coverSearchTimer = setTimeout(function() {
+                        // Only search if user hasn't uploaded a cover
+                        if (!window.uploadedBookCover) findBookCover();
+                    }, 1000);
+                }
+                $('postBookTitle').addEventListener('input', triggerCoverSearch);
+                $('postAuthor').addEventListener('input', triggerCoverSearch);
+                // Bio char count
+                $('profileBio').addEventListener('input', function() {
+                    var len = this.value.length;
+                    $('bioCharCount').textContent = len > 200 ? '200 / 200' : len + ' / 200';
+                    if (len > 200) this.value = this.value.substring(0, 200);
+                });
+
+                // --- User Profile Viewer Modal ---
+                // Event delegation for user profile link clicks (dynamically created)
+                $('postsFeed').addEventListener('click', function(e) {
+                    var target = e.target.closest('.user-name, .user-avatar, .user-avatar-fallback');
+                    if (target && target.dataset.username) {
+                        openUserProfile(target.dataset.username);
+                    }
+                });
+                $('userProfileModalClose').addEventListener('click', function() {
+                    $('userProfileModal').classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+                $('userProfileModal').addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        $('userProfileModal').classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                });
+                // Tab switching in user profile modal
+                $$('.up-tab').forEach(function(tab) {
+                    tab.addEventListener('click', function() {
+                        var tabName = this.dataset.tab;
+                        $$('.up-tab').forEach(function(t) {
+                            t.classList.remove('active', 'text-primary', 'border-primary');
+                            t.classList.add('text-gray-500');
+                            t.style.borderBottom = 'none';
+                        });
+                        this.classList.add('active', 'text-primary', 'border-primary');
+                        this.style.borderBottom = '2px solid #6d28d9';
+
+                        if (tabName === 'posts') {
+                            show($('upPostsContent'));
+                            hide($('upCommentsContent'));
+                        } else {
+                            show($('upCommentsContent'));
+                            hide($('upPostsContent'));
+                        }
+                    });
+                });
+
+                // Keyboard: Esc to close modals
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        if ($('authModal').classList.contains('active')) closeAuthModal();
+                        if ($('postModal').classList.contains('active')) closePostModal();
+                        if ($('profileModal').classList.contains('active')) {
+                            $('profileModal').classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
+                        if ($('userProfileModal').classList.contains('active')) {
+                            $('userProfileModal').classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
+                        closeDropdown();
+                    }
+                });
+
+                // My Posts
+                $('myPostsBtn').addEventListener('click', async function() {
+                    closeDropdown();
+                    currentFilter = 'myposts';
+                    activateFeedTab('feedTabMyPosts');
+                    renderedPostCount = 0;
+                    await renderPosts();
+                    $('postsFeed').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            }
+
+            // Start
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() { init().catch(function(e) { console.error('Init error:', e); }); });
+            } else {
+                init().catch(function(e) { console.error('Init error:', e); });
+            }
+        })();
+    </script>
+</body>
+</html>
